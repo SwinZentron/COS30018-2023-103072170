@@ -3,3 +3,6 @@ matplotlib
 pandas
 pandas_datareader
 tensorflow
+yfinance
+sklearn
+scikit-learn
