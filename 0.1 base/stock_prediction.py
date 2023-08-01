@@ -1,4 +1,4 @@
-# File: stock_prediction.py
+ # File: stock_prediction.py
 # Authors: Cheong Koo and Bao Vo
 # Date: 14/07/2021(v1); 19/07/2021 (v2); 25/07/2023 (v3)
 
