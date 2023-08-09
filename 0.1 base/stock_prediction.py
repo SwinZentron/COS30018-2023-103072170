@@ -23,11 +23,41 @@ import pandas_datareader as web
 import datetime as dt
 import tensorflow as tf
 import yfinance as yf
-
+import os
+from sklearn import preprocessing
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, LSTM, InputLayer
 
+def processData(ticker, start_date, end_date, save_file, split_method='date', split_ratio=0.8, split_date=None, fillna_method='ffill', scale_features=False, save_scalers=False, scaler_file_path=None):
+    #create data folder in working directory if it doesnt already exist
+    data_dir = os.path.join(os.getcwd(), 'data')
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+
+    #if ticker is a string, load it from yfinance library
+    if isinstance(ticker, str):
+        # Check if data file exists based on ticker, start_date and end_date
+        file_path = os.path.join(data_dir, f"{ticker}_{start_date}_{end_date}.csv")
+        if os.path.exists(file_path):
+            # Load data from file
+            data = pd.read_csv(file_path)
+        else:
+            # Download data using yfinance
+            data = yf.download(ticker, start=start_date, end=end_date)
+            # Save data to file if boolean save_file is True
+            if save_file:
+                data.to_csv(file_path) 
+    #if passed in ticker is a dataframe, use it directly
+    elif isinstance(ticker, pd.DataFrame):
+        # already loaded, use it directly
+        data = ticker
+    else:
+        raise TypeError("ticker can be either a str or a `pd.DataFrame` instances")
+   
+    # Check if data file exists
+    
 #------------------------------------------------------------------------------
 # Load Data
 ## TO DO:
@@ -36,7 +66,7 @@ from tensorflow.keras.layers import Dense, Dropout, LSTM, InputLayer
 # If not, save the data into a directory
 #------------------------------------------------------------------------------
 DATA_SOURCE = "yahoo"
-COMPANY = "TSLA"
+COMPANY = "TSLA"    
 
 # start = '2012-01-01', end='2017-01-01'
 TRAIN_START = '2015-01-01'
