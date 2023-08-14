@@ -16,6 +16,7 @@
 # pip install pandas-datareader
 # pip install yfinance
 
+from msilib import Feature
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -24,6 +25,7 @@ import datetime as dt
 import tensorflow as tf
 import yfinance as yf
 import os
+import pickle
 from sklearn import preprocessing
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
@@ -31,19 +33,22 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, LSTM, InputLayer
 
 #task 2 - function to load and process a dataset with multiple features
-def processData(ticker, start_date, end_date, save_file, split_method='date', split_ratio=0.8, split_date=None, fillna_method='drop', feature_columns=['adjclose', 'volume', 'open', 'high', 'low'], scale_features=False, save_scalers=False):
+def processData(ticker, start_date, end_date, save_file, feature_columns=[], split_method='date', split_ratio=0.8, split_date=None, fillna_method='drop', scale_features=False, scale_min=0, scale_max=1 , save_scalers=False):
     """
     Load and process a dataset with multiple features.
     
     :param ticker: str, company ticker symbol
     :param start_date: str, start date for the dataset in the format 'YYYY-MM-DD'
     :param end_date: str, end date for the dataset in the format 'YYYY-MM-DD'
+    :param save_file: bool, whether to save the dataset to a file
+    :param feature_columns: list, list of feature columns to use in the model
     :param split_method: str, method to split the data into train/test data ('date' or 'random')
     :param split_ratio: float, ratio of train/test data if split_method is 'random'
     :param split_date: str, date to split the data if split_method is 'date'
     :param fillna_method: str, method to drop or fill NaN values in the data ('drop', 'ffill', 'bfill', or 'mean')
-    :param feature_columns: list, list of feature columns to use in the model
     :param scale_features: bool, whether to scale the feature columns
+    :param scale_min: int, minimum value to scale the feature columns
+    :param scale_max: int, maximum value to scale the feature columns
     :param save_scalers: bool, whether to save the scalers to a file
     
     :return: tuple of pandas.DataFrame, train and test data
@@ -75,12 +80,16 @@ def processData(ticker, start_date, end_date, save_file, split_method='date', sp
         raise TypeError("ticker can be either a str or a `pd.DataFrame` instances")
    
     # make sure that the passed feature_columns exist in the dataframe
-    for col in feature_columns:
-        assert col in data.columns, f"'{col}' does not exist in the dataframe."
+    if len(feature_columns) > 0:
+        for col in feature_columns:
+            assert col in data.columns, f"'{col}' does not exist in the dataframe."
+    else:
+        feature_columns = filter(lambda column: column != 'Date', data.columns)
+
 
     # add date as a column
-    if "date" not in data.columns:
-        df["date"] = data.index
+    if "Date" not in data.columns:
+        data["Date"] = data.index
 
     # Filter data by date
     data.reset_index(inplace=True)
@@ -91,8 +100,8 @@ def processData(ticker, start_date, end_date, save_file, split_method='date', sp
     if scale_features:
         scaler_dict = {}
         for col in feature_columns:
-            scaler = MinMaxScaler()
-            data[col] = scaler.fit_transform(train_data[[col]])
+            scaler = MinMaxScaler(feature_range=(scale_min, scale_max))
+            data[col] = scaler.fit_transform(data[[col]])
             scaler_dict[col] = scaler
         
          # Save scalers to file
@@ -102,7 +111,7 @@ def processData(ticker, start_date, end_date, save_file, split_method='date', sp
             if not os.path.exists(scalers_dir):
                 os.makedirs(scalers_dir)
             
-            scaler_file_name = f"{ticker}_{start_date}_{end_date}_scalers.pkl"
+            scaler_file_name = f"{ticker}_{start_date}_{end_date}_scalers.txt"
             scaler_file_path = os.path.join(scalers_dir, scaler_file_name)
             with open(scaler_file_path, 'wb') as f:
                 pickle.dump(scaler_dict, f)
@@ -201,6 +210,41 @@ x_train, y_train = np.array(x_train), np.array(y_train)
 x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
 # We now reshape x_train into a 3D array(p, q, 1); Note that x_train 
 # is an array of p inputs with each input being a 2D array 
+
+#------------------------------------------------------------------------------
+# Load and process data using Task B.2 Function
+# ------------------------------------------------------------------------------
+
+# define function parameters to use
+DATA_START_DATE = '2015-01-01'
+DATA_END_DATE = '2022-12-31'
+SAVE_FILE = True
+SPLIT_METHOD = 'random'
+SPLIT_RATIO = 0.8
+SPLIT_DATE = '2020-01-01'
+NAN_METHOD = 'drop'
+FEATURE_COLUMNS = []
+SCALE_FEATURES = True
+SCALE_MIN = 0
+SCALE_MAX = 1
+SAVE_SCALERS = True
+
+# Call processData function passing in parameters
+train_data, test_data = processData(
+    ticker=COMPANY, 
+    start_date=DATA_START_DATE, 
+    end_date=DATA_END_DATE, 
+    save_file=SAVE_FILE,
+    split_method=SPLIT_METHOD, 
+    split_ratio=SPLIT_RATIO, 
+    split_date=SPLIT_DATE,
+    fillna_method=NAN_METHOD,
+    feature_columns=FEATURE_COLUMNS,
+    scale_features=SCALE_FEATURES,
+    scale_min=SCALE_MIN,
+    scale_max=SCALE_MAX,
+    save_scalers=SAVE_SCALERS
+    )
 
 #------------------------------------------------------------------------------
 # Build the Model
