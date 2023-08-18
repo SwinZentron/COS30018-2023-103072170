@@ -1,5 +1,5 @@
-# COS30019-2023-103072170
-COS30019 Intelligent Systems Assessment Option B: Stock Price Prediction System
+# COS30018-2023-103072170
+COS30018 Intelligent Systems Assessment Option B: Stock Price Prediction System
 
 ## About Me
 * Name: Naca Hitchman
