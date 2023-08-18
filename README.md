@@ -13,6 +13,7 @@ This project aims to implement a software system that can predict stock prices. 
 
 ## Documentation Links
 ### Week B.1
+[Task B.1 PDF](https://github.com/SwinZentron/COS30018-2023-103072170/blob/main/Week%20B.1/Task%201%20Report.pdf)
 
 ### Week B.2
 
