@@ -34,7 +34,22 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, LSTM, InputLayer
 
 #task 2 - function to load and process a dataset with multiple features
-def processData(ticker, start_date, end_date, save_file, prediction_days, feature_columns=[], split_method='date', split_ratio=0.8, split_date=None, fillna_method='drop', scale_features=False, scale_min=0, scale_max=1 , save_scalers=False):
+def processData(
+    ticker, 
+    start_date, 
+    end_date, 
+    save_file, 
+    prediction_column, 
+    prediction_days, 
+    feature_columns=[], 
+    split_method='date', 
+    split_ratio=0.8, 
+    split_date=None, 
+    fillna_method='drop', 
+    scale_features=False, 
+    scale_min=0, 
+    scale_max=1,
+    save_scalers=False):
     """
     Load and process a dataset with multiple features.
     
@@ -60,7 +75,7 @@ def processData(ticker, start_date, end_date, save_file, prediction_days, featur
     data_dir = os.path.join(os.getcwd(), 'data')
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
-    data = None
+    data = None 
     #if ticker is a string, load it from yfinance library
     if isinstance(ticker, str):
         # Check if data file exists based on ticker, start_date and end_date
@@ -79,6 +94,7 @@ def processData(ticker, start_date, end_date, save_file, prediction_days, featur
         # already loaded, use it directly
         data = ticker
     else:
+        # raise error if ticker is neither a string nor a dataframe
         raise TypeError("ticker can be either a str or a `pd.DataFrame` instances")
    
     # this will contain all the elements we want to return from this function
@@ -91,14 +107,15 @@ def processData(ticker, start_date, end_date, save_file, prediction_days, featur
         for col in feature_columns:
             assert col in data.columns, f"'{col}' does not exist in the dataframe."
     else:
+        # if no feature_columns are passed, use all columns except the prediction_column
         feature_columns = list(filter(lambda column: column != 'Date', data.columns))
     
+    # add feature columns to result
     result['feature_columns'] = feature_columns
     # Deal with potential NaN values in the data
     # Drop NaN values
     if fillna_method == 'drop':
        data.dropna(inplace=True)
-       print("drop")
     #use forward fill method, fill NaN values with the previous value
     elif fillna_method == 'ffill':
         data.fillna(method='ffill', inplace=True)
@@ -108,43 +125,40 @@ def processData(ticker, start_date, end_date, save_file, prediction_days, featur
     #use mean method, fill NaN values with the mean of the column
     elif fillna_method == 'mean':
         data.fillna(data.mean(), inplace=True)
- 
-    #data['Date'] = pd.to_datetime(data['Date'])
-    #split_date = pd.to_datetime(split_date)
-    #train_mask = data['Date'] < split_date
-    #test_mask = data['Date'] >= split_date
 
-    # Split data into train and test sets
+    # Split data into train and test sets based on date
     if split_method == 'date':
         train_data = data.loc[data['Date'] < split_date]
         test_data = data.loc[data['Date'] >= split_date]
-
-        #train_data = data[data['Date'] < split_date]
-        #test_data = data[data['Date'] >= split_date]
+    # Split data into train and test sets randomly with provided ratio
     elif split_method == 'random':
         train_data, test_data = train_test_split(data, train_size=split_ratio, random_state=42)
     
-   
-    train_data = train_data.reset_index(drop=True)
-    test_data = test_data.reset_index(drop=True)
-
+    # Reset index of both dataframes
+    train_data = train_data.reset_index()
+    test_data = test_data.reset_index()
+    # Sort dataframes by date
     train_data = train_data.sort_values(by='Date')
     test_data = test_data.sort_values(by='Date')
-    
-
-    #train_data = train_data.reshape(-1, 1)
-    #test_data = test_data.reshape(-1, 1)
 
     # Scale features
     if scale_features:
+        # Create scaler dictionary to store all scalers for each feature column
         scaler_dict = {}
+        # Dictionaries to store scaled train and test data
         scaled_train_data = {}
         scaled_test_data = {}
+        #loop through each feature column
         for col in feature_columns:
+            # Create scaler for each feature column using Min Max, passing in the scale_min and scale_max
             scaler = MinMaxScaler(feature_range=(scale_min, scale_max))
+            # Fit and transform scaler on train data
             scaled_train_data[col] = scaler.fit_transform(train_data[col].values.reshape(-1, 1)).ravel()
+            # Transform test data using scaler
             scaled_test_data[col] = scaler.transform(test_data[col].values.reshape(-1,1)).ravel()
+            # Add scaler to scaler dictionary, using the feature column name as key
             scaler_dict[col] = scaler
+        # Add scaler dictionary to result
         result["column_scaler"] = scaler_dict
         
          # Save scalers to file
@@ -153,83 +167,46 @@ def processData(ticker, start_date, end_date, save_file, prediction_days, featur
             scalers_dir = os.path.join(os.getcwd(), 'scalers')
             if not os.path.exists(scalers_dir):
                 os.makedirs(scalers_dir)
-        
+            # Create scaler file name
             scaler_file_name = f"{ticker}_{start_date}_{end_date}_scalers.txt"
             scaler_file_path = os.path.join(scalers_dir, scaler_file_name)
             with open(scaler_file_path, 'wb') as f:
                 pickle.dump(scaler_dict, f)
-        with open('GFG.csv', 'w') as f:
-     
-        # using csv.writer method from CSV package
-            write = csv.writer(f)
-     
-            write.writerow(feature_columns)
-            write.writerows(scaled_test_data)
-        
-        #np.savetxt("np1.csv", np.concatenate(scaled_test_data), delimiter=",")
-        #pd.DataFrame(np.concatenate(scaled_test_data)).to_csv('df1.csv', index=False)
-
+       
+        # Convert scaled data to dataframes
         train_data = pd.DataFrame(scaled_train_data)
         test_data = pd.DataFrame(scaled_test_data)
-        test_data.to_csv('dftest1', index=False)
-        #train_data = pd.DataFrame({col: scaled_train_data[col].ravel() for col in feature_columns})
-        #test_data = pd.DataFrame({col: scaled_test_data[col].ravel() for col in feature_columns})
 
-        # Concatenate scaled data and original 'Date' column
-        #train_data = pd.concat([train_data['Date'], pd.DataFrame(np.concatenate(scaled_train_data, axis=-1), columns=feature_columns)], axis=1)
-        #test_data = pd.concat([test_data['Date'], pd.DataFrame(np.concatenate(scaled_test_data, axis=-1), columns=feature_columns)], axis=1)
-        #result['scaled_data'] = data
-
-    
-    
-
+    # Add train and test data to result
     result["scaled_train"] = train_data
     result["scaled_test"] = test_data
-    test_data.to_csv('df1.csv', index=False)
-
-    
-    # construct the X's and y's for the training data
+    # Construct the X's and y's for the training data
     X_train, y_train = [], []
-
-    #X = train_data.iloc[:, :-1]
-    #y = train_data.iloc[:, -1]
-
-    #scaled_train = scaled_train[:,0]
-    #scaled_test = scaled_test[1:]
-
-    #for i in range(prediction_days, len(train_data)):
-    #    X_train.append(X.iloc[i-prediction_days:i].values)
-    #    y_train.append(y.iloc[i])
-
+    # Loop through the training data from prediction_days to the end
     for x in range(prediction_days, len(train_data)):
-        X_train.append(train_data['Close'].iloc[x-prediction_days:x])
-        y_train.append(train_data['Close'].iloc[x])
+        # Append the values of the passed prediction column to X_train and y_train
+        X_train.append(train_data[prediction_column].iloc[x-prediction_days:x])
+        y_train.append(train_data[prediction_column].iloc[x])
 
     # convert to numpy arrays
     result["X_train"] = np.array(X_train)
     result["y_train"] = np.array(y_train)
-
+    # reshape X_train for proper fitting into LSTM model
     result["X_train"] = np.reshape(result["X_train"], (result["X_train"].shape[0], result['X_train'].shape[1], -1));
     # construct the X's and y's for the test data
     X_test, y_test = [], []
-
-    #X = test_data.iloc[:, :-1]
-    #y = test_data.iloc[:, -1]
-
-    result["actual_values"] = test_data
-
-    #for i in range(prediction_days, len(test_data)):
-    #   X_test.append(X.iloc[i-prediction_days:i].values)
-    #   y_test.append(y.iloc[i])
-
+    # Loop through the test data from prediction_days to the end
     for x in range(prediction_days, len(test_data)):
-        X_test.append(test_data['Close'].iloc[x - prediction_days:x])
-        #y_test.append(test_data['Close'].iloc[x])
+        # Append the values of the passed prediction column to X_test and y_test
+        X_test.append(test_data[prediction_column].iloc[x - prediction_days:x])
+        y_test.append(test_data[prediction_column].iloc[x])
 
     # convert to numpy arrays
     X_test = np.array(X_test)
-    #result["y_test"] = np.array(y_test)
-
+    y_test = np.array(y_test)
+    #assign y_test to result
+    result["y_test"] = y_test
+    #assign X_test to result and reshape X_test for prediction compatibility
     result["X_test"] = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1));
 
     return result
@@ -240,12 +217,10 @@ def processData(ticker, start_date, end_date, save_file, prediction_days, featur
 # If so, load the saved data
 # If not, save the data into a directory
 #------------------------------------------------------------------------------
-DATA_SOURCE = "yahoo"
-COMPANY = "TSLA"    
+  
 
 # start = '2012-01-01', end='2017-01-01'
-TRAIN_START = '2015-01-01'
-TRAIN_END = '2020-01-01'
+
 
 ##data =  yf.download(COMPANY, start=TRAIN_START, end=TRAIN_END, progress=False)
 # yf.download(COMPANY, start = TRAIN_START, end=TRAIN_END)
@@ -261,7 +236,7 @@ TRAIN_END = '2020-01-01'
 # 2) Use a different price value eg. mid-point of Open & Close
 # 3) Change the Prediction days
 #------------------------------------------------------------------------------
-PRICE_VALUE = "Close"
+
 
 #scaler = MinMaxScaler(feature_range=(0, 1)) 
 # Note that, by default, feature_range=(0, 1). Thus, if you want a different 
@@ -287,10 +262,12 @@ PRICE_VALUE = "Close"
 # ------------------------------------------------------------------------------
 
 # define function parameters to use
+DATA_SOURCE = "yahoo"
+COMPANY = "TSLA"  
 DATA_START_DATE = '2015-01-01'
 DATA_END_DATE = '2022-12-31'
 SAVE_FILE = True
-PREDICTION_DAYS = 60
+PREDICTION_DAYS = 100
 SPLIT_METHOD = 'random'
 SPLIT_RATIO = 0.8
 SPLIT_DATE = '2020-01-02'
@@ -300,6 +277,7 @@ SCALE_FEATURES = True
 SCALE_MIN = 0
 SCALE_MAX = 1
 SAVE_SCALERS = True
+prediction_column = "Close"
 
 # Call processData function passing in parameters
 data = processData(
@@ -307,6 +285,7 @@ data = processData(
     start_date=DATA_START_DATE, 
     end_date=DATA_END_DATE, 
     save_file=SAVE_FILE,
+    prediction_column=prediction_column,
     prediction_days=PREDICTION_DAYS,
     split_method=SPLIT_METHOD, 
     split_ratio=SPLIT_RATIO, 
@@ -319,65 +298,10 @@ data = processData(
     save_scalers=SAVE_SCALERS
     )
 
-# select the column to use for prediction
-prediction_column = "Close"
-
-# create X_train and y_train using only the selected column
-X_train, y_train = [], []
-"""
-for x in range(PREDICTION_DAYS, len(data['scaled_train'])):
-    X_train.append(data['scaled_train'][x-PREDICTION_DAYS:x, data['feature_columns'].index(prediction_column)])
-    y_train.append(data['scaled_train'][x, data['feature_columns'].index(prediction_column)])
-X_train = np.array(X_train)
-y_train = np.array(y_train)
-"""
-# loop over the training data and create the training sets
-for i in range(PREDICTION_DAYS, len(data['scaled_train'])):
-    X_train.append(data['scaled_train']['Close'].iloc[i-PREDICTION_DAYS:i].values)
-    y_train.append(data['scaled_train']['Close'].iloc[i])
-
-X_train = np.array(X_train);
-y_train = np.array(y_train);
-# create X_test and y_test using only the selected column
-X_test, y_test = [], []
-"""
-for x in range(PREDICTION_DAYS, len(data['scaled_test'])):
-    X_test.append(data['scaled_test'][x-PREDICTION_DAYS:x, data['feature_columns'].index(prediction_column)])
-    y_test.append(data['scaled_test'][x, data['feature_columns'].index(prediction_column)])
-
-"""
-for i in range(PREDICTION_DAYS, len(data['scaled_test'])):
-    X_test.append(data['scaled_test']['Close'].iloc[i-PREDICTION_DAYS:i].values)
-    y_test.append(data['scaled_test']['Close'].iloc[i])
-
-X_test = np.array(X_test)
-y_test = np.array(y_test)
 
 # Number of days to look back to base the prediction
 #PREDICTION_DAYS = 60 # Original
 
-"""
-# To store the training data
-x_train = []
-y_train = []
-
-scaled_data = scaled_data[:,0] # Turn the 2D array back to a 1D array
-# Prepare the data
-for x in range(PREDICTION_DAYS, len(train_data)):
-    # Use the past PREDICTION_DAYS of prices as input features
-    x_train.append(train_data[PRICE_VALUE].iloc[x-PREDICTION_DAYS:x])
-    # Use the price of the next day as the target variable
-    y_train.append(train_data[PRICE_VALUE].iloc[x])
-
-# Convert them into an array
-x_train, y_train = np.array(x_train), np.array(y_train)
-# Now, x_train is a 2D array(p,q) where p = len(scaled_data) - PREDICTION_DAYS
-# and q = PREDICTION_DAYS; while y_train is a 1D array(p)
-
-x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
-# We now reshape x_train into a 3D array(p, q, 1); Note that x_train 
-# is an array of p inputs with each input being a 2D array 
-"""
 
 
 #------------------------------------------------------------------------------
@@ -465,9 +389,6 @@ model.fit(data['X_train'], data["y_train"], epochs=25, batch_size=32)
 #------------------------------------------------------------------------------
 # Test the model accuracy on existing data
 #------------------------------------------------------------------------------
-# Load the test data
-TEST_START = '2020-01-02'
-TEST_END = '2022-12-31'
 
 #test_data = yf.download(COMPANY, start=TRAIN_START, end=TRAIN_END, progress=False)
 
@@ -475,12 +396,13 @@ TEST_END = '2022-12-31'
 #test_data = test_data[1:]
 
 # Now using test_data from processData function
-data["actual_values"] = data["actual_values"][1:]
-actual_prices = data["column_scaler"][prediction_column].inverse_transform(data["actual_values"][prediction_column].values.reshape(-1, 1)).ravel()
+#data["actual_values"] = data["actual_values"][1:]
+#data["y_test"] = data["y_test"][1:]
+#actual_prices = data["column_scaler"][prediction_column].inverse_transform(data["actual_values"][prediction_column].values.reshape(-1, 1)).ravel()
 
-#actual_prices =  data["actual_values"][prediction_column].values
+#actual_prices =  data["y_test"][1:]
 
-#actual_prices = data["column_scaler"][prediction_column].inverse_transform(actual_prices)
+actual_prices = data["column_scaler"][prediction_column].inverse_transform(data["y_test"].reshape(-1,1))
 # create dataframes from the y_train and y_test arrays
 #y_train_df = pd.DataFrame(data['y_train'])
 #y_test_df = pd.DataFrame(data['y_test'])
@@ -520,32 +442,9 @@ actual_prices = data["column_scaler"][prediction_column].inverse_transform(data[
 predicted_prices = model.predict(data['X_test'])
 #print(predicted_prices.shape)
 predicted_prices = data["column_scaler"][prediction_column].inverse_transform(predicted_prices)
-predicted_prices = np.concatenate((np.full(PREDICTION_DAYS, np.nan), predicted_prices))
+#predicted_prices = predicted_prices.ravel()
+#predicted_prices = np.concatenate((np.full(PREDICTION_DAYS, np.nan), predicted_prices))
 
-"""
-# get the column_scaler dictionary
-column_scaler = data['column_scaler']
-
-# create a dictionary to store the inverse transformed data for each column
-inverse_transformed_data = {}
-
-# iterate over each column and apply the inverse transform
-for col, scaler in column_scaler.items():
-    # get the index of the column in the predicted data
-    col_idx = list(column_scaler.keys()).index(col)
-    
-    # select the data for the current column
-    col_data = predicted_prices[:, col_idx]
-    #col_data = predicted_prices[col]
-    # reshape the data to have shape (n_samples, 1)
-    col_data = col_data.reshape(-1, 1)
-    
-    # apply the inverse transform to the data
-    inverse_transformed_data[col] = scaler.inverse_transform(col_data)
-
-# concatenate the inverse transformed data for each column along axis 1
-predicted_prices = np.concatenate(list(inverse_transformed_data.values()), axis=1)
-"""
 # Clearly, as we transform our data into the normalized range (0,1),
 # we now need to reverse this transformation 
 #------------------------------------------------------------------------------
@@ -564,12 +463,18 @@ plt.ylabel(f"{COMPANY} Share Price")
 plt.legend()
 plt.show()
 
+predicted_prices = predicted_prices.ravel()
+actual_prices = actual_prices.ravel()
+df = pd.DataFrame(predicted_prices)
+df.to_csv('predicted_prices.csv', index=False)
+df = pd.DataFrame(actual_prices)
+df.to_csv('actual_prices.csv', index=False)
 #------------------------------------------------------------------------------
 # Predict next day
 #------------------------------------------------------------------------------
 
 
-real_data = [X_test[len(X_test) - PREDICTION_DAYS:, 0]]
+real_data = [data['X_test'][len(data['X_test']) - PREDICTION_DAYS:, 0]]
 real_data = np.array(real_data)
 real_data = np.reshape(real_data, (real_data.shape[0], real_data.shape[1], 1))
 
