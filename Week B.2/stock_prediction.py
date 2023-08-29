@@ -19,8 +19,6 @@
 from msilib import Feature
 import numpy as np
 import matplotlib.pyplot as plt
-import mplfinance as mpf
-import matplotlib.dates as mdates
 import pandas as pd
 import pandas_datareader as web
 import datetime as dt
@@ -34,52 +32,6 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, LSTM, InputLayer
-
-def plot_candlestick(df, n=1):
-    """
-    Plots a candlestick chart of the given DataFrame with Yahoo Finance data.
-    
-    :param df: DataFrame with Yahoo Finance data
-    :param n: Number of trading days each candlestick represents (default is 1)
-    """
-    # Resample the data to have one row per n trading days
-    df = df.resample(f'{n}D').agg({'Open': 'first', 
-                                    'High': 'max', 
-                                    'Low': 'min', 
-                                    'Close': 'last'})
-    
-    # Create the candlestick chart
-    mpf.plot(df, type='candle')
-
-def downloadData(ticker, start_date, end_date, save_file=False):
-     #create data folder in working directory if it doesnt already exist
-    data_dir = os.path.join(os.getcwd(), 'data')
-    if not os.path.exists(data_dir):
-        os.makedirs(data_dir)
-    data = None 
-    #if ticker is a string, load it from yfinance library
-    if isinstance(ticker, str):
-        # Check if data file exists based on ticker, start_date and end_date
-        file_path = os.path.join(data_dir, f"{ticker}_{start_date}_{end_date}.csv")
-        if os.path.exists(file_path):
-            # Load data from file
-            data = pd.read_csv(file_path)
-        else:
-            # Download data using yfinance
-            data = yf.download(ticker, start=start_date, end=end_date, progress=False)
-            # Save data to file if boolean save_file is True
-            if save_file:
-                data.to_csv(file_path) 
-    #if passed in ticker is a dataframe, use it directly
-    elif isinstance(ticker, pd.DataFrame):
-        # already loaded, use it directly
-        data = ticker
-    else:
-        # raise error if ticker is neither a string nor a dataframe
-        raise TypeError("ticker can be either a str or a `pd.DataFrame` instances")
-
-    # return the dataframe
-    return data
 
 #task 2 - function to load and process a dataset with multiple features
 def processData(
@@ -119,7 +71,31 @@ def processData(
     :return: tuple of pandas.DataFrame, train and test data
     """
     
-    data = downloadData(ticker, start_date, end_date, save_file)
+    #create data folder in working directory if it doesnt already exist
+    data_dir = os.path.join(os.getcwd(), 'data')
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+    data = None 
+    #if ticker is a string, load it from yfinance library
+    if isinstance(ticker, str):
+        # Check if data file exists based on ticker, start_date and end_date
+        file_path = os.path.join(data_dir, f"{ticker}_{start_date}_{end_date}.csv")
+        if os.path.exists(file_path):
+            # Load data from file
+            data = pd.read_csv(file_path)
+        else:
+            # Download data using yfinance
+            data = yf.download(ticker, start=start_date, end=end_date, progress=False)
+            # Save data to file if boolean save_file is True
+            if save_file:
+                data.to_csv(file_path) 
+    #if passed in ticker is a dataframe, use it directly
+    elif isinstance(ticker, pd.DataFrame):
+        # already loaded, use it directly
+        data = ticker
+    else:
+        # raise error if ticker is neither a string nor a dataframe
+        raise TypeError("ticker can be either a str or a `pd.DataFrame` instances")
    
     # this will contain all the elements we want to return from this function
     result = {}
@@ -322,7 +298,7 @@ data = processData(
     save_scalers=SAVE_SCALERS
     )
 
-plot_candlestick(downloadData(COMPANY, '2022-05-01', '2022-05-31', False), 5)
+
 # Number of days to look back to base the prediction
 #PREDICTION_DAYS = 60 # Original
 

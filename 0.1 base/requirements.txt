@@ -1,5 +1,6 @@
 numpy
 matplotlib
+mpl_finance
 pandas
 pandas_datareader
 tensorflow
