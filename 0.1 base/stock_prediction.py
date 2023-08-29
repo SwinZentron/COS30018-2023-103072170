@@ -35,6 +35,20 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, LSTM, InputLayer
 
+import matplotlib.pyplot as plt
+
+def plot_rolling_window(df, window, columns):
+    # Calculate the rolling window data for each column
+    rolling_data = [df[column].rolling(window).mean() for column in columns]
+    
+    # Create the box plot
+    fig, ax = plt.subplots()
+    ax.boxplot([data.dropna() for data in rolling_data], labels=columns)
+    ax.set_title(f'{window} Day Rolling Window')
+    
+    # Show the plot
+    plt.show()
+
 def plot_candlestick(df, n=1):
     """
     Plots a candlestick chart of the given DataFrame with Yahoo Finance data.
@@ -81,6 +95,22 @@ def downloadData(ticker, start_date, end_date, save_file=False):
     # return the dataframe
     return data
 
+def processNANs(df, fillna_method):
+    # Deal with potential NaN values in the data
+    # Drop NaN values
+    if fillna_method == 'drop':
+        df.dropna(inplace=True)
+    #use forward fill method, fill NaN values with the previous value
+    elif fillna_method == 'ffill':
+        df.fillna(method='ffill', inplace=True)
+    #use backward fill method, fill NaN values with the next value
+    elif fillna_method == 'bfill':
+        df.fillna(method='bfill', inplace=True)
+    #use mean method, fill NaN values with the mean of the column
+    elif fillna_method == 'mean':
+        df.fillna(data.mean(), inplace=True)
+
+    return df
 #task 2 - function to load and process a dataset with multiple features
 def processData(
     ticker, 
@@ -138,17 +168,7 @@ def processData(
     result['feature_columns'] = feature_columns
     # Deal with potential NaN values in the data
     # Drop NaN values
-    if fillna_method == 'drop':
-       data.dropna(inplace=True)
-    #use forward fill method, fill NaN values with the previous value
-    elif fillna_method == 'ffill':
-        data.fillna(method='ffill', inplace=True)
-    #use backward fill method, fill NaN values with the next value
-    elif fillna_method == 'bfill':
-        data.fillna(method='bfill', inplace=True)
-    #use mean method, fill NaN values with the mean of the column
-    elif fillna_method == 'mean':
-        data.fillna(data.mean(), inplace=True)
+    data = processNANs(data, fillna_method)
 
     # Split data into train and test sets based on date
     if split_method == 'date':
@@ -322,7 +342,11 @@ data = processData(
     save_scalers=SAVE_SCALERS
     )
 
-plot_candlestick(downloadData(COMPANY, '2022-05-01', '2022-05-31', False), 5)
+plot_candlestick(processNANs(downloadData(COMPANY, '2022-05-01', '2022-05-31', False), 'drop'), 1)
+
+#plot_boxplot(processNANs(downloadData(COMPANY, '2019-01-01', '2022-12-31', False),'drop'),['Open', 'High', 'Low', 'Close', 'Adj Close'], 10)
+
+plot_rolling_window(processNANs(downloadData(COMPANY, '2019-01-01', '2022-12-31', False),'drop'), 20, ['Open', 'High', 'Low', 'Close', 'Adj Close'])
 # Number of days to look back to base the prediction
 #PREDICTION_DAYS = 60 # Original
 
