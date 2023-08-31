@@ -37,25 +37,19 @@ from tensorflow.keras.layers import Dense, Dropout, LSTM, InputLayer
 
 import matplotlib.pyplot as plt
 
-def plot_rolling_window(df, window, columns):
+def plot_boxplot(df, n, columns):
     # Calculate the rolling window data for each column
-    rolling_data = [df[column].rolling(window).mean() for column in columns]
+    rolling_data = [df[column].rolling(n).mean() for column in columns]
     
     # Create the box plot
     fig, ax = plt.subplots()
     ax.boxplot([data.dropna() for data in rolling_data], labels=columns)
-    ax.set_title(f'{window} Day Rolling Window')
+    ax.set_title(f'{n} Day Rolling Window')
     
     # Show the plot
     plt.show()
 
 def plot_candlestick(df, n=1):
-    """
-    Plots a candlestick chart of the given DataFrame with Yahoo Finance data.
-    
-    :param df: DataFrame with Yahoo Finance data
-    :param n: Number of trading days each candlestick represents (default is 1)
-    """
     # Resample the data to have one row per n trading days
     df = df.resample(f'{n}D').agg({'Open': 'first', 
                                     'High': 'max', 
@@ -342,11 +336,11 @@ data = processData(
     save_scalers=SAVE_SCALERS
     )
 
-plot_candlestick(processNANs(downloadData(COMPANY, '2022-05-01', '2022-05-31', False), 'drop'), 1)
+plot_candlestick(processNANs(downloadData(COMPANY, '2022-05-01', '2022-05-31', False), 'drop'), 5)
 
 #plot_boxplot(processNANs(downloadData(COMPANY, '2019-01-01', '2022-12-31', False),'drop'),['Open', 'High', 'Low', 'Close', 'Adj Close'], 10)
 
-plot_rolling_window(processNANs(downloadData(COMPANY, '2019-01-01', '2022-12-31', False),'drop'), 20, ['Open', 'High', 'Low', 'Close', 'Adj Close'])
+plot_boxplot(downloadData(COMPANY, '2019-01-01', '2022-12-31', False), 40, ['Open', 'High', 'Low', 'Close', 'Adj Close'])
 # Number of days to look back to base the prediction
 #PREDICTION_DAYS = 60 # Original
 
