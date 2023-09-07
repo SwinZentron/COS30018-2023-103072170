@@ -33,10 +33,46 @@ from sklearn import preprocessing
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, LSTM, InputLayer
+from tensorflow.keras.layers import LSTM, GRU, SimpleRNN, Bidirectional, Dropout, Dense
 
 import matplotlib.pyplot as plt
 
+#task 4
+def create_model(sequence_length, n_features, units=[256], cells=['LSTM'], n_layers=2, dropout=0.3,
+                loss="mean_absolute_error", optimizer="rmsprop", bidirectional=False):
+    model = Sequential()
+    for i in range(n_layers):
+        cell_name = cells[i]
+        if cell_name not in globals():
+            raise ValueError(f"Invalid layer network type: {cell_name}")
+        cell = globals()[cell_name]
+        unit = units[i]
+        if i == 0:
+            # first layer
+            if bidirectional:
+                model.add(Bidirectional(cell(unit, return_sequences=True), batch_input_shape=(None, sequence_length, n_features)))
+            else:
+                model.add(cell(unit, return_sequences=True, batch_input_shape=(None, sequence_length, n_features)))
+        elif i == n_layers - 1:
+            # last layer
+            if bidirectional:
+                model.add(Bidirectional(cell(unit, return_sequences=False)))
+            else:
+                model.add(cell(unit, return_sequences=False))
+        else:
+            # hidden layers
+            if bidirectional:
+                model.add(Bidirectional(cell(unit, return_sequences=True)))
+            else:
+                model.add(cell(unit, return_sequences=True))
+        # add dropout after each layer
+        model.add(Dropout(dropout))
+    model.add(Dense(1, activation="linear"))
+    model.compile(loss=loss, metrics=["mean_absolute_error"], optimizer=optimizer)
+    return model
+
+
+#task 3
 def plot_boxplot(df, n, columns):
     # Calculate the rolling window data for each column
     rolling_data = [df[column].rolling(n).mean() for column in columns]
@@ -49,6 +85,7 @@ def plot_boxplot(df, n, columns):
     # Show the plot
     plt.show()
 
+#task 3
 def plot_candlestick(df, n=1):
     # Resample the data to have one row per n trading days
     df = df.resample(f'{n}D').agg({'Open': 'first', 
@@ -59,6 +96,7 @@ def plot_candlestick(df, n=1):
     # Create the candlestick chart
     mpf.plot(df, type='candle')
 
+#task 2
 def downloadData(ticker, start_date, end_date, save_file=False):
      #create data folder in working directory if it doesnt already exist
     data_dir = os.path.join(os.getcwd(), 'data')
