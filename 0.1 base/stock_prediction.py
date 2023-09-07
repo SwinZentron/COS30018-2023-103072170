@@ -415,6 +415,9 @@ loss = "mean_absolute_error"
 optimizer = "rmsprop"
 bidirectional = True
 
+
+
+
 # Create the model using the create_model function
 model = create_model(sequence_length, n_features, units=units, cells=cells, n_layers=n_layers,
                      dropout=dropout, loss=loss, optimizer=optimizer, bidirectional=bidirectional)
@@ -422,9 +425,6 @@ model = create_model(sequence_length, n_features, units=units, cells=cells, n_la
 # Set the number of epochs and batch size
 epochs = 25
 batch_size = 32
-
-# Set the early stopping criteria
-#early_stopping = EarlyStopping(monitor='val_loss', patience=10)
 
 # Train the model on the training data
 model.fit(data['X_train'], data['y_train'], epochs=epochs, batch_size=batch_size)
