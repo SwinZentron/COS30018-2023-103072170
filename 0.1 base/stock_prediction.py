@@ -40,36 +40,57 @@ import matplotlib.pyplot as plt
 #task 4
 def create_model(sequence_length, n_features, units=[256], cells=['LSTM'], n_layers=2, dropout=0.3,
                 loss="mean_absolute_error", optimizer="rmsprop", bidirectional=False):
+    # Create a Sequential model
     model = Sequential()
+    
+    # Loop over the number of layers
     for i in range(n_layers):
+        # Get the name of the cell (layer type) for this layer
         cell_name = cells[i]
+        
+        # Check if the cell name corresponds to a valid layer network type
         if cell_name not in globals():
             raise ValueError(f"Invalid layer network type: {cell_name}")
+        
+        # Get a reference to the corresponding layer network object
         cell = globals()[cell_name]
+        
+        # Get the number of units for this layer
         unit = units[i]
+        
+        # If this is the first layer...
         if i == 0:
-            # first layer
             if bidirectional:
                 model.add(Bidirectional(cell(unit, return_sequences=True), batch_input_shape=(None, sequence_length, n_features)))
             else:
                 model.add(cell(unit, return_sequences=True, batch_input_shape=(None, sequence_length, n_features)))
+                
+        # If this is the last layer...
         elif i == n_layers - 1:
-            # last layer
             if bidirectional:
                 model.add(Bidirectional(cell(unit, return_sequences=False)))
             else:
                 model.add(cell(unit, return_sequences=False))
+                
+        # If this is a hidden layer...
         else:
-            # hidden layers
             if bidirectional:
                 model.add(Bidirectional(cell(unit, return_sequences=True)))
             else:
                 model.add(cell(unit, return_sequences=True))
-        # add dropout after each layer
+                
+        # Add dropout after each layer
         model.add(Dropout(dropout))
+    
+    # Add a Dense output layer with linear activation
     model.add(Dense(1, activation="linear"))
+    
+    # Compile the model with the specified loss function and optimizer
     model.compile(loss=loss, metrics=["mean_absolute_error"], optimizer=optimizer)
+    
+    # Return the compiled model
     return model
+
 
 
 #task 3
@@ -382,8 +403,33 @@ plot_boxplot(downloadData(COMPANY, '2019-01-01', '2022-12-31', False), 40, ['Ope
 # Number of days to look back to base the prediction
 #PREDICTION_DAYS = 60 # Original
 
+#------------------------------------------------------------------------------
+#Task 4
+sequence_length = data['X_train'].shape[1]
+n_features = data['X_train'].shape[2]
+units = [256, 128]
+cells = ['LSTM', 'GRU']
+n_layers = 2
+dropout = 0.3
+loss = "mean_absolute_error"
+optimizer = "rmsprop"
+bidirectional = True
 
+# Create the model using the create_model function
+model = create_model(sequence_length, n_features, units=units, cells=cells, n_layers=n_layers,
+                     dropout=dropout, loss=loss, optimizer=optimizer, bidirectional=bidirectional)
 
+# Set the number of epochs and batch size
+epochs = 25
+batch_size = 32
+
+# Set the early stopping criteria
+#early_stopping = EarlyStopping(monitor='val_loss', patience=10)
+
+# Train the model on the training data
+model.fit(data['X_train'], data['y_train'], epochs=epochs, batch_size=batch_size)
+
+"""
 #------------------------------------------------------------------------------
 # Build the Model
 ## TO DO:
@@ -444,7 +490,7 @@ model.compile(optimizer='adam', loss='mean_squared_error')
 # Now we are going to train this model with our training data 
 # (x_train, y_train)
 model.fit(data['X_train'], data["y_train"], epochs=25, batch_size=32)
-
+"""
 # Other parameters to consider: How many rounds(epochs) are we going to 
 # train our model? Typically, the more the better, but be careful about
 # overfitting!
