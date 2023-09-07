@@ -405,10 +405,10 @@ plot_boxplot(downloadData(COMPANY, '2019-01-01', '2022-12-31', False), 40, ['Ope
 
 #------------------------------------------------------------------------------
 #Task 4
-#set 1
-"""
 sequence_length = data['X_train'].shape[1]
 n_features = data['X_train'].shape[2]
+#set 1
+"""
 units = [256, 128]
 cells = ['LSTM', 'GRU']
 n_layers = 2
@@ -423,9 +423,8 @@ batch_size = 32
 """
 
 #set 2
+"""
 # Set the model parameters
-sequence_length = 100
-n_features = 5
 units = [256, 128, 64]
 cells = ['LSTM', 'GRU', 'SimpleRNN']
 n_layers = 3
@@ -437,12 +436,10 @@ bidirectional = True
 # Set the training parameters
 epochs = 25
 batch_size = 32
-
+"""
 #set 3
 """
 # Set the model parameters
-sequence_length = 100
-n_features = 5
 units = [512, 256]
 cells = ['GRU', 'GRU']
 n_layers = 2
@@ -457,10 +454,8 @@ batch_size = 64
 """
 
 #set 4
-"""
+
 # Set the model parameters
-sequence_length = 100
-n_features = 5
 units = [128, 64, 32]
 cells = ['SimpleRNN', 'SimpleRNN', 'SimpleRNN']
 n_layers = 3
@@ -470,10 +465,10 @@ optimizer = "adagrad"
 bidirectional = True
 
 # Set the training parameters
-epochs = 150
+epochs = 15
 batch_size = 16
 
-"""
+
 
 # Create the model using the create_model function
 model = create_model(sequence_length, n_features, units=units, cells=cells, n_layers=n_layers,
