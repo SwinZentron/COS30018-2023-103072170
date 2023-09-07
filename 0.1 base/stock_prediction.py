@@ -405,6 +405,8 @@ plot_boxplot(downloadData(COMPANY, '2019-01-01', '2022-12-31', False), 40, ['Ope
 
 #------------------------------------------------------------------------------
 #Task 4
+#set 1
+"""
 sequence_length = data['X_train'].shape[1]
 n_features = data['X_train'].shape[2]
 units = [256, 128]
@@ -415,16 +417,69 @@ loss = "mean_absolute_error"
 optimizer = "rmsprop"
 bidirectional = True
 
+# Set the number of epochs and batch size
+epochs = 25
+batch_size = 32
+"""
 
+#set 2
+# Set the model parameters
+sequence_length = 100
+n_features = 5
+units = [256, 128, 64]
+cells = ['LSTM', 'GRU', 'SimpleRNN']
+n_layers = 3
+dropout = 0.2
+loss = "mean_squared_error"
+optimizer = "adam"
+bidirectional = True
 
+# Set the training parameters
+epochs = 25
+batch_size = 32
+
+#set 3
+"""
+# Set the model parameters
+sequence_length = 100
+n_features = 5
+units = [512, 256]
+cells = ['GRU', 'GRU']
+n_layers = 2
+dropout = 0.4
+loss = "mean_absolute_percentage_error"
+optimizer = "sgd"
+bidirectional = False
+
+# Set the training parameters
+epochs = 35
+batch_size = 64
+"""
+
+#set 4
+"""
+# Set the model parameters
+sequence_length = 100
+n_features = 5
+units = [128, 64, 32]
+cells = ['SimpleRNN', 'SimpleRNN', 'SimpleRNN']
+n_layers = 3
+dropout = 0.5
+loss = "huber_loss"
+optimizer = "adagrad"
+bidirectional = True
+
+# Set the training parameters
+epochs = 150
+batch_size = 16
+
+"""
 
 # Create the model using the create_model function
 model = create_model(sequence_length, n_features, units=units, cells=cells, n_layers=n_layers,
                      dropout=dropout, loss=loss, optimizer=optimizer, bidirectional=bidirectional)
 
-# Set the number of epochs and batch size
-epochs = 25
-batch_size = 32
+
 
 # Train the model on the training data
 model.fit(data['X_train'], data['y_train'], epochs=epochs, batch_size=batch_size)
