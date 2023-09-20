@@ -39,7 +39,7 @@ import matplotlib.pyplot as plt
 
 #task 5
 #   multi step prediction function
-def create_sequences(data, seq_length, n_steps):
+def create_sequences_multistep(data, seq_length, n_steps):
     xs = []
     ys = []
     for i in range(len(data)-seq_length-n_steps):
@@ -49,6 +49,25 @@ def create_sequences(data, seq_length, n_steps):
         ys.append(y)
     return np.array(xs), np.array(ys)
 
+def create_sequences_multivariate(data, seq_length):
+    xs = []
+    ys = []
+    for i in range(len(data)-seq_length):
+        x = data[i:(i+seq_length)]
+        y = data[i+seq_length, -1]  # assuming target column is the last one
+        xs.append(x)
+        ys.append(y)
+    return np.array(xs), np.array(ys)
+
+def create_sequences_combination(data, seq_length, n_steps):
+    xs = []
+    ys = []
+    for i in range(len(data)-seq_length-n_steps):
+        x = data[i:(i+seq_length)]
+        y = data[(i+seq_length):(i+seq_length+n_steps)]
+        xs.append(x)
+        ys.append(y[:, -1])  # assuming target column is the last one
+    return np.array(xs), np.array(ys)
 
 
 #task 4
@@ -104,8 +123,6 @@ def create_model(sequence_length, n_features, units=[256], cells=['LSTM'], n_lay
     
     # Return the compiled model
     return model
-
-
 
 #task 3
 def plot_boxplot(df, n, columns):
@@ -194,7 +211,9 @@ def processData(
     scale_features=False, 
     scale_min=0, 
     scale_max=1,
-    save_scalers=False):
+    save_scalers=False,
+    n_steps=1,  # number of future days to predict
+    task5method=2):  # whether to use multiple features
     """
     Load and process a dataset with multiple features.
     
@@ -212,7 +231,8 @@ def processData(
     :param scale_min: int, minimum value to scale the feature columns
     :param scale_max: int, maximum value to scale the feature columns
     :param save_scalers: bool, whether to save the scalers to a file
-    
+    :param n_steps: int, number of future days to predict
+    :param multivariate: bool, whether to use multiple features
     :return: tuple of pandas.DataFrame, train and test data
     """
     
@@ -293,17 +313,33 @@ def processData(
     result["scaled_test"] = test_data
     # Construct the X's and y's for the training data
     X_train, y_train = [], []
+
+    #Task 5
+    # Create sequences
+    if task5method == 1: #only multistep
+        X_train, y_train = create_sequences_multistep(train_data[feature_columns], seq_length=prediction_days, n_steps=n_steps)
+        X_test, y_test = create_sequences_multistep(test_data[feature_columns], seq_length=prediction_days, n_steps=n_steps)
+    elif task5method == 2: #only multivariate
+        X_train, y_train = create_sequences_multivariate(train_data[prediction_column], seq_length=prediction_days)
+        X_test, y_test = create_sequences_multivariate(test_data[prediction_column], seq_length=prediction_days)
+    elif task5method == 3: #both
+        X_train, y_train = create_sequences_combination(train_data[prediction_column], seq_length=prediction_days, n_steps=n_steps)
+        X_test, y_test = create_sequences_combination(test_data[prediction_column], seq_length=prediction_days, n_steps=n_steps)
+    
+    """
     # Loop through the training data from prediction_days to the end
     for x in range(prediction_days, len(train_data)):
         # Append the values of the passed prediction column to X_train and y_train
         X_train.append(train_data[prediction_column].iloc[x-prediction_days:x])
         y_train.append(train_data[prediction_column].iloc[x])
-
+    """
     # convert to numpy arrays
     result["X_train"] = np.array(X_train)
     result["y_train"] = np.array(y_train)
     # reshape X_train for proper fitting into LSTM model
     result["X_train"] = np.reshape(result["X_train"], (result["X_train"].shape[0], result['X_train'].shape[1], -1));
+
+    """
     # construct the X's and y's for the test data
     X_test, y_test = [], []
     # Loop through the test data from prediction_days to the end
@@ -311,7 +347,7 @@ def processData(
         # Append the values of the passed prediction column to X_test and y_test
         X_test.append(test_data[prediction_column].iloc[x - prediction_days:x])
         y_test.append(test_data[prediction_column].iloc[x])
-
+    """
     # convert to numpy arrays
     X_test = np.array(X_test)
     y_test = np.array(y_test)
