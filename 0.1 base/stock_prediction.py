@@ -37,6 +37,20 @@ from tensorflow.keras.layers import LSTM, GRU, SimpleRNN, Bidirectional, Dropout
 
 import matplotlib.pyplot as plt
 
+#task 5
+#   multi step prediction function
+def create_sequences(data, seq_length, n_steps):
+    xs = []
+    ys = []
+    for i in range(len(data)-seq_length-n_steps):
+        x = data[i:(i+seq_length)]
+        y = data[(i+seq_length):(i+seq_length+n_steps)]
+        xs.append(x)
+        ys.append(y)
+    return np.array(xs), np.array(ys)
+
+
+
 #task 4
 def create_model(sequence_length, n_features, units=[256], cells=['LSTM'], n_layers=2, dropout=0.3,
                 loss="mean_absolute_error", optimizer="rmsprop", bidirectional=False):
@@ -307,52 +321,6 @@ def processData(
     result["X_test"] = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1));
 
     return result
-#------------------------------------------------------------------------------
-# Load Data
-## TO DO:
-# 1) Check if data has been saved before. 
-# If so, load the saved data
-# If not, save the data into a directory
-#------------------------------------------------------------------------------
-  
-
-# start = '2012-01-01', end='2017-01-01'
-
-
-##data =  yf.download(COMPANY, start=TRAIN_START, end=TRAIN_END, progress=False)
-# yf.download(COMPANY, start = TRAIN_START, end=TRAIN_END)
-
-# For more details: 
-# https://pandas.pydata.org/pandas-docs/stable/user_guide/dsintro.html
-#------------------------------------------------------------------------------
-# Prepare Data
-## To do:
-# 1) Check if data has been prepared before. 
-# If so, load the saved data
-# If not, save the data into a directory
-# 2) Use a different price value eg. mid-point of Open & Close
-# 3) Change the Prediction days
-#------------------------------------------------------------------------------
-
-
-#scaler = MinMaxScaler(feature_range=(0, 1)) 
-# Note that, by default, feature_range=(0, 1). Thus, if you want a different 
-# feature_range (min,max) then you'll need to specify it here
-##scaled_data = scaler.fit_transform(data[PRICE_VALUE].values.reshape(-1, 1)) 
-# Flatten and normalise the data
-# First, we reshape a 1D array(n) to 2D array(n,1)
-# We have to do that because sklearn.preprocessing.fit_transform()
-# requires a 2D array
-# Here n == len(scaled_data)
-# Then, we scale the whole array to the range (0,1)
-# The parameter -1 allows (np.)reshape to figure out the array size n automatically 
-# values.reshape(-1, 1) 
-# https://stackoverflow.com/questions/18691084/what-does-1-mean-in-numpy-reshape'
-# When reshaping an array, the new shape must contain the same number of elements 
-# as the old shape, meaning the products of the two shapes' dimensions must be equal. 
-# When using a -1, the dimension corresponding to the -1 will be the product of 
-# the dimensions of the original array divided by the product of the dimensions 
-# given to reshape so as to maintain the same number of elements.
 
 #------------------------------------------------------------------------------
 # Load and process data using Task B.2 Function
@@ -408,7 +376,7 @@ plot_boxplot(downloadData(COMPANY, '2019-01-01', '2022-12-31', False), 40, ['Ope
 sequence_length = data['X_train'].shape[1]
 n_features = data['X_train'].shape[2]
 #set 1
-"""
+
 units = [256, 128]
 cells = ['LSTM', 'GRU']
 n_layers = 2
@@ -420,7 +388,7 @@ bidirectional = True
 # Set the number of epochs and batch size
 epochs = 25
 batch_size = 32
-"""
+
 
 #set 2
 """
@@ -454,7 +422,7 @@ batch_size = 64
 """
 
 #set 4
-
+"""
 # Set the model parameters
 units = [128, 64, 32]
 cells = ['SimpleRNN', 'SimpleRNN', 'SimpleRNN']
@@ -467,7 +435,7 @@ bidirectional = True
 # Set the training parameters
 epochs = 15
 batch_size = 16
-
+"""
 
 
 # Create the model using the create_model function
@@ -479,137 +447,9 @@ model = create_model(sequence_length, n_features, units=units, cells=cells, n_la
 # Train the model on the training data
 model.fit(data['X_train'], data['y_train'], epochs=epochs, batch_size=batch_size)
 
-"""
-#------------------------------------------------------------------------------
-# Build the Model
-## TO DO:
-# 1) Check if data has been built before. 
-# If so, load the saved data
-# If not, save the data into a directory
-# 2) Change the model to increase accuracy?
-#------------------------------------------------------------------------------
-model = Sequential() # Basic neural network
-# See: https://www.tensorflow.org/api_docs/python/tf/keras/Sequential
-# for some useful examples
 
-#model.add(LSTM(units=50, return_sequences=True, input_shape=(data["X_train"].shape[1], 1)))
-model.add(LSTM(units=50, return_sequences=True, input_shape=(data["X_train"].shape[1], 1)))
-# This is our first hidden layer which also spcifies an input layer. 
-# That's why we specify the input shape for this layer; 
-# i.e. the format of each training example
-# The above would be equivalent to the following two lines of code:
-# model.add(InputLayer(input_shape=(x_train.shape[1], 1)))
-# model.add(LSTM(units=50, return_sequences=True))
-# For som eadvances explanation of return_sequences:
-# https://machinelearningmastery.com/return-sequences-and-return-states-for-lstms-in-keras/
-# https://www.dlology.com/blog/how-to-use-return_state-or-return_sequences-in-keras/
-# As explained there, for a stacked LSTM, you must set return_sequences=True 
-# when stacking LSTM layers so that the next LSTM layer has a 
-# three-dimensional sequence input. 
-
-# Finally, units specifies the number of nodes in this layer.
-# This is one of the parameters you want to play with to see what number
-# of units will give you better prediction quality (for your problem)
-
-model.add(Dropout(0.2))
-# The Dropout layer randomly sets input units to 0 with a frequency of 
-# rate (= 0.2 above) at each step during training time, which helps 
-# prevent overfitting (one of the major problems of ML). 
-
-model.add(LSTM(units=50, return_sequences=True))
-# More on Stacked LSTM:
-# https://machinelearningmastery.com/stacked-long-short-term-memory-networks/
-
-model.add(Dropout(0.2))
-model.add(LSTM(units=50))
-model.add(Dropout(0.2))
-
-model.add(Dense(units=1)) 
-# Prediction of the next closing value of the stock price
-
-# We compile the model by specify the parameters for the model
-# See lecture Week 6 (COS30018)
-model.compile(optimizer='adam', loss='mean_squared_error')
-# The optimizer and loss are two important parameters when building an 
-# ANN model. Choosing a different optimizer/loss can affect the prediction
-# quality significantly. You should try other settings to learn; e.g.
-    
-# optimizer='rmsprop'/'sgd'/'adadelta'/...
-# loss='mean_absolute_error'/'huber_loss'/'cosine_similarity'/...
-
-# Now we are going to train this model with our training data 
-# (x_train, y_train)
-model.fit(data['X_train'], data["y_train"], epochs=25, batch_size=32)
-"""
-# Other parameters to consider: How many rounds(epochs) are we going to 
-# train our model? Typically, the more the better, but be careful about
-# overfitting!
-# What about batch_size? Well, again, please refer to 
-# Lecture Week 6 (COS30018): If you update your model for each and every 
-# input sample, then there are potentially 2 issues: 1. If you training 
-# data is very big (billions of input samples) then it will take VERY long;
-# 2. Each and every input can immediately makes changes to your model
-# (a souce of overfitting). Thus, we do this in batches: We'll look at
-# the aggreated errors/losses from a batch of, say, 32 input samples
-# and update our model based on this aggregated loss.
-
-# TO DO:
-# Save the model and reload it
-# Sometimes, it takes a lot of effort to train your model (again, look at
-# a training data with billions of input samples). Thus, after spending so 
-# much computing power to train your model, you may want to save it so that
-# in the future, when you want to make the prediction, you only need to load
-# your pre-trained model and run it on the new input for which the prediction
-# need to be made.
-
-#------------------------------------------------------------------------------
-# Test the model accuracy on existing data
-#------------------------------------------------------------------------------
-
-#test_data = yf.download(COMPANY, start=TRAIN_START, end=TRAIN_END, progress=False)
-
-# The above bug is the reason for the following line of code
-#test_data = test_data[1:]
-
-# Now using test_data from processData function
-#data["actual_values"] = data["actual_values"][1:]
-#data["y_test"] = data["y_test"][1:]
-#actual_prices = data["column_scaler"][prediction_column].inverse_transform(data["actual_values"][prediction_column].values.reshape(-1, 1)).ravel()
-
-#actual_prices =  data["y_test"][1:]
 
 actual_prices = data["column_scaler"][prediction_column].inverse_transform(data["y_test"].reshape(-1,1))
-# create dataframes from the y_train and y_test arrays
-#y_train_df = pd.DataFrame(data['y_train'])
-#y_test_df = pd.DataFrame(data['y_test'])
-
-# concatenate the dataframes
-#total_dataset = pd.concat([y_train_df, y_test_df], axis=0)
-
-# reset the index
-#total_dataset.reset_index(drop=True, inplace=True)
-#total_dataset = pd.concat((data["y_train"], data["y_test"]), axis=0)
-#total_dataset = data['df']
-
-#model_inputs = total_dataset[len(total_dataset) - len(data['y_test']) - PREDICTION_DAYS:].values
-# We need to do the above because to predict the closing price of the first
-# PREDICTION_DAYS of the test period [TEST_START, TEST_END], we'll need the 
-# data from the training period
-
-#model_inputs = model_inputs.reshape(-1, 1)
-#model_inputs = data["column_scaler"].transform(model_inputs)
-# We again normalize our closing price data to fit them into the range (0,1)
-# using the same scaler used above 
-# However, there may be a problem: scaler was computed on the basis of
-# the Max/Min of the stock price for the period [TRAIN_START, TRAIN_END],
-# but there may be a lower/higher price during the test period 
-# [TEST_START, TEST_END]. That can lead to out-of-bound values (negative and
-# greater than one)
-# We'll call this ISSUE #2
-
-# TO DO: Generally, there is a better way to process the data so that we 
-# can use part of it for training and the rest for testing. You need to 
-# implement such a way
 
 #------------------------------------------------------------------------------
 # Make predictions on test data
