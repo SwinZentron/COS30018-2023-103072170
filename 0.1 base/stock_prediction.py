@@ -34,6 +34,8 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, GRU, SimpleRNN, Bidirectional, Dropout, Dense
+from keras.layers import Reshape
+
 
 import matplotlib.pyplot as plt
 
@@ -59,8 +61,19 @@ def create_sequences_mv(data, seq_length):
         ys.append(y)
     return np.array(xs), np.array(ys)
 
+def create_sequences(data, seq_length, n_steps_ahead):
+    xs = []
+    ys = []
+    for i in range(len(data)-(seq_length+n_steps_ahead)+1):
+        x = data[i:(i+seq_length)]
+        y = data[i+seq_length:i+seq_length+n_steps_ahead]  # keep all features for the next n_steps_ahead days
+        xs.append(x)
+        ys.append(y)
+    return np.array(xs), np.array(ys)
+
 
 #task 4
+
 def create_model(sequence_length, n_features, n_steps_ahead, units=[256], cells=['LSTM'], n_layers=2, dropout=0.3,
                 loss="mean_absolute_error", optimizer="rmsprop", bidirectional=False):
     model = Sequential()
@@ -86,9 +99,14 @@ def create_model(sequence_length, n_features, n_steps_ahead, units=[256], cells=
             else:
                 model.add(cell(unit, return_sequences=True))
         model.add(Dropout(dropout))
-    model.add(Dense(n_steps_ahead, activation="linear"))  # Adjusted for multi-step prediction
+    model.add(Dense(n_steps_ahead * n_features, activation="linear"))  # Adjusted for multi-step, multivariate prediction
+    model.add(Reshape((n_steps_ahead, n_features)))  # Reshape the output to have shape (n_steps_ahead, n_features)
     model.compile(loss=loss, metrics=["mean_absolute_error"], optimizer=optimizer)
     return model
+
+
+
+
 
 
 #task 3
@@ -279,51 +297,18 @@ def processData(
     result["scaled_train"] = train_data
     result["scaled_test"] = test_data
     # Construct the X's and y's for the training data
-    X_train, y_train, X_test, y_test = [], [], [], []
-
-    #Task 5
-    # Create sequences
-    if task5method == 0: #only multistep
-        X_train, y_train = create_sequences_ms(train_data[prediction_column].values, prediction_days, n_steps)
-        X_test, y_test = create_sequences_ms(test_data[prediction_column].values, prediction_days, n_steps)
-    #elif task5method == 2: #only multivariate
-        #X_train, y_train = create_sequences_multivariate(train_data[prediction_column], seq_length=prediction_days)
-        #X_test, y_test = create_sequences_multivariate(test_data[prediction_column], seq_length=prediction_days)
-    #elif task5method == 2: #both
-        #X_train, y_train = create_sequences_combination(train_data[feature_columns], seq_length=prediction_days, n_steps=n_steps)
-        #X_test, y_test = create_sequences_combination(test_data[feature_columns], seq_length=prediction_days, n_steps=n_steps)
-    
-    """
-    # Loop through the training data from prediction_days to the end
-    for x in range(prediction_days, len(train_data)):
-        # Append the values of the passed prediction column to X_train and y_train
-        X_train.append(train_data[prediction_column].iloc[x-prediction_days:x])
-        y_train.append(train_data[prediction_column].iloc[x])
-    """
-    # convert to numpy arrays
-    #result["X_train"] = np.array(X_train)
-    #result["y_train"] = np.array(y_train)
+    result["scaled_train"] = train_data
+    result["scaled_test"] = test_data
+    X_train, y_train = create_sequences(train_data[feature_columns].values, prediction_days, n_steps)
+    result["X_train"] = X_train
     result["y_train"] = y_train
-    # reshape X_train for proper fitting into LSTM model
-    result["X_train"] = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], -1));
-    #result["X_train"] = np.reshape(result["X_train"], (result["X_train"].shape[0], result['X_train'].shape[1], -1));
-
-    """
-    # construct the X's and y's for the test data
-    X_test, y_test = [], []
-    # Loop through the test data from prediction_days to the end
-    for x in range(prediction_days, len(test_data)):
-        # Append the values of the passed prediction column to X_test and y_test
-        X_test.append(test_data[prediction_column].iloc[x - prediction_days:x])
-        y_test.append(test_data[prediction_column].iloc[x])
-    """
-    # convert to numpy arrays
+    result["X_train"] = np.reshape(result["X_train"], (result["X_train"].shape[0], result['X_train'].shape[1], -1));
+    X_test, y_test = create_sequences(test_data[feature_columns].values, prediction_days, n_steps) 
     #X_test = np.array(X_test)
     #y_test = np.array(y_test)
-    #assign y_test to result
     result["y_test"] = y_test
-    #assign X_test to result and reshape X_test for prediction compatibility
-    result["X_test"] = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1));
+    result["X_test"] = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], len(feature_columns)));
+
 
     return result
 
@@ -455,20 +440,16 @@ model = create_model(sequence_length, n_features, units=units, cells=cells, n_la
 # Train the model on the training data
 model.fit(data['X_train'], data['y_train'], epochs=epochs, batch_size=batch_size)
 
+closing_price_index = FEATURE_COLUMNS.index(prediction_column)
 
+# Get the actual prices
+actual_prices = data["column_scaler"][prediction_column].inverse_transform(data["y_test"][:, closing_price_index].reshape(-1,1))
 
-actual_prices = data["column_scaler"][prediction_column].inverse_transform(data["y_test"].reshape(-1,1))
-
-#------------------------------------------------------------------------------
-# Make predictions on test data
-#------------------------------------------------------------------------------
-
+# Predict the prices
 predicted_prices = model.predict(data['X_test'])
-#print(predicted_prices.shape)
-predicted_prices = data["column_scaler"][prediction_column].inverse_transform(predicted_prices.reshape(-1,1))
-#predicted_prices = predicted_prices.ravel()
-#predicted_prices = np.concatenate((np.full(PREDICTION_DAYS, np.nan), predicted_prices))
+predicted_prices = data["column_scaler"][prediction_column].inverse_transform(predicted_prices[:, closing_price_index].reshape(-1,1))
 
+# Plot the actual and predicted prices
 plt.plot(actual_prices, color="black", label=f"Actual {COMPANY} Price")
 plt.plot(predicted_prices, color="green", label=f"Predicted {COMPANY} Price")
 plt.title(f"{COMPANY} Share Price")
@@ -477,6 +458,7 @@ plt.ylabel(f"{COMPANY} Share Price")
 plt.legend()
 plt.show()
 
+# Save the predicted and actual prices to csv files
 predicted_prices = predicted_prices.ravel()
 actual_prices = actual_prices.ravel()
 df = pd.DataFrame(predicted_prices)
@@ -484,17 +466,19 @@ df.to_csv('predicted_prices.csv', index=False)
 df = pd.DataFrame(actual_prices)
 df.to_csv('actual_prices.csv', index=False)
 
-real_data = [data['X_test'][-PREDICTION_DAYS:, 0]]
+# Predict the next k days
+real_data = [data['X_test'][-PREDICTION_DAYS:, :]]
 real_data = np.array(real_data)
-real_data = np.reshape(real_data, (real_data.shape[0], real_data.shape[1], 1))
+real_data = np.reshape(real_data, (real_data.shape[0], real_data.shape[1], n_features))
 
 # Predict the next k days
-prediction = model.predict(real_data)  # shape: (1, k)
-prediction = data["column_scaler"][prediction_column].inverse_transform(prediction)  # shape: (1, k)
+prediction = model.predict(real_data)  # shape: (1, k, n_features)
+prediction = data["column_scaler"][prediction_column].inverse_transform(prediction[:, :, -1])  # shape: (1, k)
 
 # Loop over the prediction and print each day's predicted price
 for i, price in enumerate(prediction[0]):
     print(f"Prediction for day {i+1}: {price}")
+
 
 
 
