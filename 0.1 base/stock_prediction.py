@@ -39,90 +39,57 @@ import matplotlib.pyplot as plt
 
 #task 5
 #   multi step prediction function
-def create_sequences_multistep(data, seq_length, n_steps):
+def create_sequences_ms(data, seq_length, n_steps_ahead):
     xs = []
     ys = []
-    for i in range(len(data)-seq_length-n_steps):
+    for i in range(len(data)-(seq_length+n_steps_ahead)+1):
         x = data[i:(i+seq_length)]
-        y = data[(i+seq_length):(i+seq_length+n_steps)]
+        y = data[(i+seq_length):(i+seq_length+n_steps_ahead)]
         xs.append(x)
         ys.append(y)
     return np.array(xs), np.array(ys)
 
-def create_sequences_multivariate(data, seq_length):
+def create_sequences_mv(data, seq_length):
     xs = []
     ys = []
-    for i in range(len(data)-seq_length):
+    for i in range(len(data)-(seq_length+1)):
         x = data[i:(i+seq_length)]
-        y = data[i+seq_length, -1]  # assuming target column is the last one
+        y = data[i+seq_length]
         xs.append(x)
         ys.append(y)
-    return np.array(xs), np.array(ys)
-
-def create_sequences_combination(data, seq_length, n_steps):
-    xs = []
-    ys = []
-    for i in range(len(data)-seq_length-n_steps):
-        x = data[i:(i+seq_length)]
-        y = data[(i+seq_length):(i+seq_length+n_steps)]
-        xs.append(x)
-        ys.append(y[:, -1])  # assuming target column is the last one
     return np.array(xs), np.array(ys)
 
 
 #task 4
-def create_model(sequence_length, n_features, units=[256], cells=['LSTM'], n_layers=2, dropout=0.3,
+def create_model(sequence_length, n_features, n_steps_ahead, units=[256], cells=['LSTM'], n_layers=2, dropout=0.3,
                 loss="mean_absolute_error", optimizer="rmsprop", bidirectional=False):
-    # Create a Sequential model
     model = Sequential()
-    
-    # Loop over the number of layers
     for i in range(n_layers):
-        # Get the name of the cell (layer type) for this layer
         cell_name = cells[i]
-        
-        # Check if the cell name corresponds to a valid layer network type
         if cell_name not in globals():
             raise ValueError(f"Invalid layer network type: {cell_name}")
-        
-        # Get a reference to the corresponding layer network object
         cell = globals()[cell_name]
-        
-        # Get the number of units for this layer
         unit = units[i]
-        
-        # If this is the first layer...
         if i == 0:
             if bidirectional:
                 model.add(Bidirectional(cell(unit, return_sequences=True), batch_input_shape=(None, sequence_length, n_features)))
             else:
                 model.add(cell(unit, return_sequences=True, batch_input_shape=(None, sequence_length, n_features)))
-                
-        # If this is the last layer...
         elif i == n_layers - 1:
             if bidirectional:
                 model.add(Bidirectional(cell(unit, return_sequences=False)))
             else:
                 model.add(cell(unit, return_sequences=False))
-                
-        # If this is a hidden layer...
         else:
             if bidirectional:
                 model.add(Bidirectional(cell(unit, return_sequences=True)))
             else:
                 model.add(cell(unit, return_sequences=True))
-                
-        # Add dropout after each layer
         model.add(Dropout(dropout))
-    
-    # Add a Dense output layer with linear activation
-    model.add(Dense(1, activation="linear"))
-    
-    # Compile the model with the specified loss function and optimizer
+    model.add(Dense(n_steps_ahead, activation="linear"))  # Adjusted for multi-step prediction
     model.compile(loss=loss, metrics=["mean_absolute_error"], optimizer=optimizer)
-    
-    # Return the compiled model
     return model
+
 
 #task 3
 def plot_boxplot(df, n, columns):
@@ -212,8 +179,8 @@ def processData(
     scale_min=0, 
     scale_max=1,
     save_scalers=False,
-    n_steps=1,  # number of future days to predict
-    task5method=2):  # whether to use multiple features
+    n_steps=5,  # number of future days to predict
+    task5method=0):  # whether to use multiple features
     """
     Load and process a dataset with multiple features.
     
@@ -312,19 +279,19 @@ def processData(
     result["scaled_train"] = train_data
     result["scaled_test"] = test_data
     # Construct the X's and y's for the training data
-    X_train, y_train = [], []
+    X_train, y_train, X_test, y_test = [], [], [], []
 
     #Task 5
     # Create sequences
-    if task5method == 1: #only multistep
-        X_train, y_train = create_sequences_multistep(train_data[feature_columns], seq_length=prediction_days, n_steps=n_steps)
-        X_test, y_test = create_sequences_multistep(test_data[feature_columns], seq_length=prediction_days, n_steps=n_steps)
-    elif task5method == 2: #only multivariate
-        X_train, y_train = create_sequences_multivariate(train_data[prediction_column], seq_length=prediction_days)
-        X_test, y_test = create_sequences_multivariate(test_data[prediction_column], seq_length=prediction_days)
-    elif task5method == 3: #both
-        X_train, y_train = create_sequences_combination(train_data[prediction_column], seq_length=prediction_days, n_steps=n_steps)
-        X_test, y_test = create_sequences_combination(test_data[prediction_column], seq_length=prediction_days, n_steps=n_steps)
+    if task5method == 0: #only multistep
+        X_train, y_train = create_sequences_ms(train_data[prediction_column].values, prediction_days, n_steps)
+        X_test, y_test = create_sequences_ms(test_data[prediction_column].values, prediction_days, n_steps)
+    #elif task5method == 2: #only multivariate
+        #X_train, y_train = create_sequences_multivariate(train_data[prediction_column], seq_length=prediction_days)
+        #X_test, y_test = create_sequences_multivariate(test_data[prediction_column], seq_length=prediction_days)
+    #elif task5method == 2: #both
+        #X_train, y_train = create_sequences_combination(train_data[feature_columns], seq_length=prediction_days, n_steps=n_steps)
+        #X_test, y_test = create_sequences_combination(test_data[feature_columns], seq_length=prediction_days, n_steps=n_steps)
     
     """
     # Loop through the training data from prediction_days to the end
@@ -334,10 +301,12 @@ def processData(
         y_train.append(train_data[prediction_column].iloc[x])
     """
     # convert to numpy arrays
-    result["X_train"] = np.array(X_train)
-    result["y_train"] = np.array(y_train)
+    #result["X_train"] = np.array(X_train)
+    #result["y_train"] = np.array(y_train)
+    result["y_train"] = y_train
     # reshape X_train for proper fitting into LSTM model
-    result["X_train"] = np.reshape(result["X_train"], (result["X_train"].shape[0], result['X_train'].shape[1], -1));
+    result["X_train"] = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], -1));
+    #result["X_train"] = np.reshape(result["X_train"], (result["X_train"].shape[0], result['X_train'].shape[1], -1));
 
     """
     # construct the X's and y's for the test data
@@ -349,8 +318,8 @@ def processData(
         y_test.append(test_data[prediction_column].iloc[x])
     """
     # convert to numpy arrays
-    X_test = np.array(X_test)
-    y_test = np.array(y_test)
+    #X_test = np.array(X_test)
+    #y_test = np.array(y_test)
     #assign y_test to result
     result["y_test"] = y_test
     #assign X_test to result and reshape X_test for prediction compatibility
@@ -379,6 +348,7 @@ SCALE_MIN = 0
 SCALE_MAX = 1
 SAVE_SCALERS = True
 prediction_column = "Close"
+N_STEPS = 5;
 
 # Call processData function passing in parameters
 data = processData(
@@ -396,14 +366,16 @@ data = processData(
     scale_features=SCALE_FEATURES,
     scale_min=SCALE_MIN,
     scale_max=SCALE_MAX,
-    save_scalers=SAVE_SCALERS
+    save_scalers=SAVE_SCALERS,
+    n_steps=N_STEPS
     )
-
-plot_candlestick(processNANs(downloadData(COMPANY, '2022-05-01', '2022-05-31', False), 'drop'), 5)
+#task 4 candlestick
+#plot_candlestick(processNANs(downloadData(COMPANY, '2022-05-01', '2022-05-31', False), 'drop'), 5)
 
 #plot_boxplot(processNANs(downloadData(COMPANY, '2019-01-01', '2022-12-31', False),'drop'),['Open', 'High', 'Low', 'Close', 'Adj Close'], 10)
 
-plot_boxplot(downloadData(COMPANY, '2019-01-01', '2022-12-31', False), 40, ['Open', 'High', 'Low', 'Close', 'Adj Close'])
+#task 4 bloxplot
+#plot_boxplot(downloadData(COMPANY, '2019-01-01', '2022-12-31', False), 40, ['Open', 'High', 'Low', 'Close', 'Adj Close'])
 # Number of days to look back to base the prediction
 #PREDICTION_DAYS = 60 # Original
 
@@ -413,8 +385,8 @@ sequence_length = data['X_train'].shape[1]
 n_features = data['X_train'].shape[2]
 #set 1
 
-units = [256, 128]
-cells = ['LSTM', 'GRU']
+units = [64, 32]
+cells = ['LSTM', 'LSTM']
 n_layers = 2
 dropout = 0.3
 loss = "mean_absolute_error"
@@ -422,8 +394,8 @@ optimizer = "rmsprop"
 bidirectional = True
 
 # Set the number of epochs and batch size
-epochs = 25
-batch_size = 32
+epochs = 15
+batch_size = 16
 
 
 #set 2
@@ -476,7 +448,7 @@ batch_size = 16
 
 # Create the model using the create_model function
 model = create_model(sequence_length, n_features, units=units, cells=cells, n_layers=n_layers,
-                     dropout=dropout, loss=loss, optimizer=optimizer, bidirectional=bidirectional)
+                     dropout=dropout, loss=loss, optimizer=optimizer, bidirectional=bidirectional, n_steps_ahead=N_STEPS)
 
 
 
@@ -487,6 +459,46 @@ model.fit(data['X_train'], data['y_train'], epochs=epochs, batch_size=batch_size
 
 actual_prices = data["column_scaler"][prediction_column].inverse_transform(data["y_test"].reshape(-1,1))
 
+#------------------------------------------------------------------------------
+# Make predictions on test data
+#------------------------------------------------------------------------------
+
+predicted_prices = model.predict(data['X_test'])
+#print(predicted_prices.shape)
+predicted_prices = data["column_scaler"][prediction_column].inverse_transform(predicted_prices.reshape(-1,1))
+#predicted_prices = predicted_prices.ravel()
+#predicted_prices = np.concatenate((np.full(PREDICTION_DAYS, np.nan), predicted_prices))
+
+plt.plot(actual_prices, color="black", label=f"Actual {COMPANY} Price")
+plt.plot(predicted_prices, color="green", label=f"Predicted {COMPANY} Price")
+plt.title(f"{COMPANY} Share Price")
+plt.xlabel("Time")
+plt.ylabel(f"{COMPANY} Share Price")
+plt.legend()
+plt.show()
+
+predicted_prices = predicted_prices.ravel()
+actual_prices = actual_prices.ravel()
+df = pd.DataFrame(predicted_prices)
+df.to_csv('predicted_prices.csv', index=False)
+df = pd.DataFrame(actual_prices)
+df.to_csv('actual_prices.csv', index=False)
+
+real_data = [data['X_test'][-PREDICTION_DAYS:, 0]]
+real_data = np.array(real_data)
+real_data = np.reshape(real_data, (real_data.shape[0], real_data.shape[1], 1))
+
+# Predict the next k days
+prediction = model.predict(real_data)  # shape: (1, k)
+prediction = data["column_scaler"][prediction_column].inverse_transform(prediction)  # shape: (1, k)
+
+# Loop over the prediction and print each day's predicted price
+for i, price in enumerate(prediction[0]):
+    print(f"Prediction for day {i+1}: {price}")
+
+
+
+"""
 #------------------------------------------------------------------------------
 # Make predictions on test data
 #------------------------------------------------------------------------------
@@ -534,17 +546,4 @@ prediction = model.predict(real_data)
 prediction = data["column_scaler"][prediction_column].inverse_transform(prediction)
 print(f"Prediction: {prediction[0]}")
 
-# A few concluding remarks here:
-# 1. The predictor is quite bad, especially if you look at the next day 
-# prediction, it missed the actual price by about 10%-13%
-# Can you find the reason?
-# 2. The code base at
-# https://github.com/x4nth055/pythoncode-tutorials/tree/master/machine-learning/stock-prediction
-# gives a much better prediction. Even though on the surface, it didn't seem 
-# to be a big difference (both use Stacked LSTM)
-# Again, can you explain it?
-# A more advanced and quite different technique use CNN to analyse the images
-# of the stock price changes to detect some patterns with the trend of
-# the stock price:
-# https://github.com/jason887/Using-Deep-Learning-Neural-Networks-and-Candlestick-Chart-Representation-to-Predict-Stock-Market
-# Can you combine these different techniques for a better prediction??
+"""
