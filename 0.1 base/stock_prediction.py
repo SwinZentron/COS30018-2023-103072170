@@ -2,6 +2,8 @@
 # Authors: Cheong Koo and Bao Vo
 # Date: 14/07/2021(v1); 19/07/2021 (v2); 25/07/2023 (v3)
 
+# Further iterations by Naca Hitchman
+
 # Code modified from:
 # Title: Predicting Stock Prices with Python
 # Youtuble link: https://www.youtube.com/watch?v=PuZY9q-aKLw
@@ -104,11 +106,6 @@ def create_model(sequence_length, n_features, n_steps_ahead, units=[256], cells=
     model.compile(loss=loss, metrics=["mean_absolute_error"], optimizer=optimizer)
     return model
 
-
-
-
-
-
 #task 3
 def plot_boxplot(df, n, columns):
     # Calculate the rolling window data for each column
@@ -199,27 +196,6 @@ def processData(
     save_scalers=False,
     n_steps=5,  # number of future days to predict
     task5method=0):  # whether to use multiple features
-    """
-    Load and process a dataset with multiple features.
-    
-    :param ticker: str, company ticker symbol
-    :param start_date: str, start date for the dataset in the format 'YYYY-MM-DD'
-    :param end_date: str, end date for the dataset in the format 'YYYY-MM-DD'
-    :param save_file: bool, whether to save the dataset to a file
-    :param prediction_days: int, number of days to predict into the future
-    :param feature_columns: list, list of feature columns to use in the model
-    :param split_method: str, method to split the data into train/test data ('date' or 'random')
-    :param split_ratio: float, ratio of train/test data if split_method is 'random'
-    :param split_date: str, date to split the data if split_method is 'date'
-    :param fillna_method: str, method to drop or fill NaN values in the data ('drop', 'ffill', 'bfill', or 'mean')
-    :param scale_features: bool, whether to scale the feature columns
-    :param scale_min: int, minimum value to scale the feature columns
-    :param scale_max: int, maximum value to scale the feature columns
-    :param save_scalers: bool, whether to save the scalers to a file
-    :param n_steps: int, number of future days to predict
-    :param multivariate: bool, whether to use multiple features
-    :return: tuple of pandas.DataFrame, train and test data
-    """
     
     data = downloadData(ticker, start_date, end_date, save_file)
    
@@ -478,61 +454,8 @@ real_data = np.reshape(real_data, (real_data.shape[0], real_data.shape[1], n_fea
 
 # Predict the next k days
 prediction = model.predict(real_data)  # shape: (1, k, n_features)
-prediction = data["column_scaler"][prediction_column].inverse_transform(prediction[:, :, -1])  # shape: (1, k)
+prediction = data["column_scaler"][prediction_column].inverse_transform(prediction[:, :, closing_price_index])  # shape: (1, k)
 
 # Loop over the prediction and print each day's predicted price
 for i, price in enumerate(prediction[0]):
     print(f"Prediction for day {i+1}: {price}")
-
-
-
-
-"""
-#------------------------------------------------------------------------------
-# Make predictions on test data
-#------------------------------------------------------------------------------
-
-predicted_prices = model.predict(data['X_test'])
-#print(predicted_prices.shape)
-predicted_prices = data["column_scaler"][prediction_column].inverse_transform(predicted_prices)
-#predicted_prices = predicted_prices.ravel()
-#predicted_prices = np.concatenate((np.full(PREDICTION_DAYS, np.nan), predicted_prices))
-
-# Clearly, as we transform our data into the normalized range (0,1),
-# we now need to reverse this transformation 
-#------------------------------------------------------------------------------
-# Plot the test predictions
-## To do:
-# 1) Candle stick charts
-# 2) Chart showing High & Lows of the day
-# 3) Show chart of next few days (predicted)
-#------------------------------------------------------------------------------
-
-plt.plot(actual_prices, color="black", label=f"Actual {COMPANY} Price")
-plt.plot(predicted_prices, color="green", label=f"Predicted {COMPANY} Price")
-plt.title(f"{COMPANY} Share Price")
-plt.xlabel("Time")
-plt.ylabel(f"{COMPANY} Share Price")
-plt.legend()
-plt.show()
-
-predicted_prices = predicted_prices.ravel()
-actual_prices = actual_prices.ravel()
-df = pd.DataFrame(predicted_prices)
-df.to_csv('predicted_prices.csv', index=False)
-df = pd.DataFrame(actual_prices)
-df.to_csv('actual_prices.csv', index=False)
-#------------------------------------------------------------------------------
-# Predict next day
-#------------------------------------------------------------------------------
-
-
-real_data = [data['X_test'][len(data['X_test']) - PREDICTION_DAYS:, 0]]
-real_data = np.array(real_data)
-real_data = np.reshape(real_data, (real_data.shape[0], real_data.shape[1], 1))
-
-prediction = model.predict(real_data)
-prediction = data["column_scaler"][prediction_column].inverse_transform(prediction)
-print(f"Prediction: {prediction[0]}")
-
-"""
