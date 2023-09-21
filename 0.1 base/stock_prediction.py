@@ -35,7 +35,7 @@ from sklearn import preprocessing
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, GRU, SimpleRNN, Bidirectional, Dropout, Dense
+from tensorflow.keras.layers import LSTM, GRU, SimpleRNN, Bidirectional, Dropout, Dense, ConvLSTM2D
 from keras.layers import Reshape
 
 
@@ -73,9 +73,7 @@ def create_sequences(data, seq_length, n_steps_ahead):
         ys.append(y)
     return np.array(xs), np.array(ys)
 
-
 #task 4
-
 def create_model(sequence_length, n_features, n_steps_ahead, units=[256], cells=['LSTM'], n_layers=2, dropout=0.3,
                 loss="mean_absolute_error", optimizer="rmsprop", bidirectional=False):
     model = Sequential()
@@ -103,7 +101,7 @@ def create_model(sequence_length, n_features, n_steps_ahead, units=[256], cells=
         model.add(Dropout(dropout))
     model.add(Dense(n_steps_ahead * n_features, activation="linear"))  # Adjusted for multi-step, multivariate prediction
     model.add(Reshape((n_steps_ahead, n_features)))  # Reshape the output to have shape (n_steps_ahead, n_features)
-    model.compile(loss=loss, metrics=["mean_absolute_error"], optimizer=optimizer)
+    model.compile(loss=loss, metrics=[loss], optimizer=optimizer)
     return model
 
 #task 3
@@ -122,11 +120,7 @@ def plot_boxplot(df, n, columns):
 #task 3
 def plot_candlestick(df, n=1):
     # Resample the data to have one row per n trading days
-    df = df.resample(f'{n}D').agg({'Open': 'first', 
-                                    'High': 'max', 
-                                    'Low': 'min', 
-                                    'Close': 'last'})
-    
+    df = df.resample(f'{n}D').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'})
     # Create the candlestick chart
     mpf.plot(df, type='candle')
 
@@ -351,8 +345,8 @@ sequence_length = data['X_train'].shape[1]
 n_features = data['X_train'].shape[2]
 #set 1
 
-units = [256, 128]
-cells = ['LSTM', 'GRU']
+units = [256, 256]
+cells = ['LSTM', 'LSTM']
 n_layers = 2
 dropout = 0.3
 loss = "mean_absolute_error"
@@ -360,7 +354,7 @@ optimizer = "rmsprop"
 bidirectional = True
 
 # Set the number of epochs and batch size
-epochs = 25
+epochs = 30
 batch_size = 32
 
 
