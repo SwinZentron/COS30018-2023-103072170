@@ -456,17 +456,17 @@ batch_size = 64
 #set 4
 
 # Set the model parameters
-units = [128, 64, 32]
-cells = ['SimpleRNN', 'SimpleRNN', 'SimpleRNN']
-n_layers = 3
-dropout = 0.5
-loss = "huber_loss"
-optimizer = "adagrad"
+units = [128, 128]
+cells = ['LSTM', 'GRU']
+n_layers = 2
+dropout = 0.3
+loss = "mean_absolute_error"
+optimizer = "rmsprop"
 bidirectional = True
 
-# Set the training parameters
+# Set the number of epochs and batch size
 epochs = 15
-batch_size = 16
+batch_size = 32
 
 
 

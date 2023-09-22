@@ -35,7 +35,7 @@ from sklearn import preprocessing
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, GRU, SimpleRNN, Bidirectional, Dropout, Dense, ConvLSTM2D
+from tensorflow.keras.layers import LSTM, GRU, SimpleRNN, Bidirectional, Dropout, Dense, ConvLSTM2D, TimeDistributed, Flatten, Lambda
 from keras.layers import Reshape
 
 
@@ -63,46 +63,47 @@ def create_sequences_mv(data, seq_length):
         ys.append(y)
     return np.array(xs), np.array(ys)
 
-def create_sequences(data, seq_length, n_steps_ahead):
-    xs = []
-    ys = []
-    for i in range(len(data)-(seq_length+n_steps_ahead)+1):
-        x = data[i:(i+seq_length)]
-        y = data[i+seq_length:i+seq_length+n_steps_ahead]  # keep all features for the next n_steps_ahead days
-        xs.append(x)
-        ys.append(y)
-    return np.array(xs), np.array(ys)
+def create_sequences(data, n_inputdays, n_outputdays):
+    X = []
+    y = []
+    for i in range(len(data) - n_inputdays - n_outputdays + 1):
+        X.append(data[i:(i + n_inputdays)])
+        y.append(data[(i + n_inputdays):(i + n_inputdays + n_outputdays)])
+    return np.array(X), np.array(y)
 
 #task 4
-def create_model(sequence_length, n_features, n_steps_ahead, units=[256], cells=['LSTM'], n_layers=2, dropout=0.3,
-                loss="mean_absolute_error", optimizer="rmsprop", bidirectional=False):
+def create_model(n_inputdays, n_features, n_outputdays, cell_types=["LSTM"], n_neurons=50, dropout_rate=0.2, loss="mse", optimizer="adam"):
+    cell_type_map = {
+        "LSTM": LSTM,
+        "GRU": GRU,
+        "SimpleRNN": SimpleRNN
+    }
+    
+    for cell_type in cell_types:
+        assert cell_type in cell_type_map, f"Invalid cell_type: {cell_type}. Choose from {list(cell_type_map.keys())}"
+    
     model = Sequential()
-    for i in range(n_layers):
-        cell_name = cells[i]
-        if cell_name not in globals():
-            raise ValueError(f"Invalid layer network type: {cell_name}")
-        cell = globals()[cell_name]
-        unit = units[i]
+    
+    for i, cell_type in enumerate(cell_types):
+        CellLayer = cell_type_map[cell_type]
+        return_sequences = i != len(cell_types) - 1 or n_outputdays > 1  # Only the last LSTM layer should return sequences if n_outputdays > 1
         if i == 0:
-            if bidirectional:
-                model.add(Bidirectional(cell(unit, return_sequences=True), batch_input_shape=(None, sequence_length, n_features)))
-            else:
-                model.add(cell(unit, return_sequences=True, batch_input_shape=(None, sequence_length, n_features)))
-        elif i == n_layers - 1:
-            if bidirectional:
-                model.add(Bidirectional(cell(unit, return_sequences=False)))
-            else:
-                model.add(cell(unit, return_sequences=False))
+            model.add(Bidirectional(CellLayer(n_neurons[i], activation='relu', return_sequences=return_sequences), input_shape=(n_inputdays, n_features)))
         else:
-            if bidirectional:
-                model.add(Bidirectional(cell(unit, return_sequences=True)))
-            else:
-                model.add(cell(unit, return_sequences=True))
-        model.add(Dropout(dropout))
-    model.add(Dense(n_steps_ahead * n_features, activation="linear"))  # Adjusted for multi-step, multivariate prediction
-    model.add(Reshape((n_steps_ahead, n_features)))  # Reshape the output to have shape (n_steps_ahead, n_features)
-    model.compile(loss=loss, metrics=[loss], optimizer=optimizer)
+            model.add(Bidirectional(CellLayer(n_neurons[i], activation='relu', return_sequences=return_sequences)))
+        model.add(Dropout(dropout_rate))
+    
+    # Apply a TimeDistributed Dense layer to each time step independently
+    model.add(TimeDistributed(Dense(n_features)))
+    # Select the last n_outputdays time steps from the sequence
+    model.add(Lambda(lambda x: x[:, -n_outputdays:, :]))
+    model.compile(optimizer=optimizer, loss=loss)
+    
     return model
+
+
+
+
 
 #task 3
 def plot_boxplot(df, n, columns):
@@ -172,6 +173,59 @@ def processNANs(df, fillna_method):
 
     return df
 #task 2 - function to load and process a dataset with multiple features
+def processData(ticker, start_date, end_date, save_file, prediction_column, prediction_days, feature_columns=[], split_method='date', split_ratio=0.8, split_date=None, fillna_method='drop', scale_features=False, scale_min=0, scale_max=1, save_scalers=False, n_steps=5):
+    data = downloadData(ticker, start_date, end_date, save_file)
+    result = {'df': data.copy()}
+    
+    if not feature_columns:
+        feature_columns = [col for col in data.columns if col != 'Date']
+    
+    result['feature_columns'] = feature_columns
+    data = processNANs(data, fillna_method)
+
+    if split_method == 'date':
+        train_data = data[data['Date'] < split_date]
+        test_data = data[data['Date'] >= split_date]
+    elif split_method == 'random':
+        train_data, test_data = train_test_split(data, train_size=split_ratio, random_state=42)
+    
+    train_data = train_data.sort_values(by='Date').reset_index(drop=True)
+    test_data = test_data.sort_values(by='Date').reset_index(drop=True)
+
+    if scale_features:
+        scaler_dict = {}
+        for col in feature_columns:
+            scaler = MinMaxScaler(feature_range=(scale_min, scale_max))
+            train_data[col] = scaler.fit_transform(train_data[col].values.reshape(-1, 1))
+            test_data[col] = scaler.transform(test_data[col].values.reshape(-1, 1))
+            scaler_dict[col] = scaler
+        result["column_scaler"] = scaler_dict
+    
+            # Save scalers to file
+        if save_scalers:
+            # Create scalers directory if it doesn't exist
+            scalers_dir = os.path.join(os.getcwd(), 'scalers')
+            if not os.path.exists(scalers_dir):
+                os.makedirs(scalers_dir)
+            # Create scaler file name
+            scaler_file_name = f"{ticker}_{start_date}_{end_date}_scalers.txt"
+            scaler_file_path = os.path.join(scalers_dir, scaler_file_name)
+            with open(scaler_file_path, 'wb') as f:
+                pickle.dump(scaler_dict, f)
+
+    result["train_data"] = train_data
+    result["test_data"] = test_data
+
+    X_train, y_train = create_sequences(train_data[feature_columns].values, n_inputdays=PREDICTION_DAYS, n_outputdays=N_STEPS)
+    X_test, y_test = create_sequences(test_data[feature_columns].values, n_inputdays=PREDICTION_DAYS, n_outputdays=N_STEPS) 
+
+    result["X_train"] = X_train
+    result["y_train"] = y_train
+    result["X_test"] = X_test
+    result["y_test"] = y_test
+
+    return result
+"""
 def processData(
     ticker, 
     start_date, 
@@ -188,8 +242,7 @@ def processData(
     scale_min=0, 
     scale_max=1,
     save_scalers=False,
-    n_steps=5,  # number of future days to predict
-    task5method=0):  # whether to use multiple features
+    n_steps=5):  # number of future days to predict  # whether to use multiple features
     
     data = downloadData(ticker, start_date, end_date, save_file)
    
@@ -247,17 +300,7 @@ def processData(
         # Add scaler dictionary to result
         result["column_scaler"] = scaler_dict
         
-         # Save scalers to file
-        if save_scalers:
-            # Create scalers directory if it doesn't exist
-            scalers_dir = os.path.join(os.getcwd(), 'scalers')
-            if not os.path.exists(scalers_dir):
-                os.makedirs(scalers_dir)
-            # Create scaler file name
-            scaler_file_name = f"{ticker}_{start_date}_{end_date}_scalers.txt"
-            scaler_file_path = os.path.join(scalers_dir, scaler_file_name)
-            with open(scaler_file_path, 'wb') as f:
-                pickle.dump(scaler_dict, f)
+        
        
         # Convert scaled data to dataframes
         train_data = pd.DataFrame(scaled_train_data)
@@ -286,7 +329,7 @@ def processData(
 
 
     return result
-
+"""
 #------------------------------------------------------------------------------
 # Load and process data using Task B.2 Function
 # ------------------------------------------------------------------------------
@@ -345,74 +388,25 @@ sequence_length = data['X_train'].shape[1]
 n_features = data['X_train'].shape[2]
 #set 1
 
-units = [256, 256]
-cells = ['LSTM', 'LSTM']
-n_layers = 2
+units = [256, 128, 64]
+cells = ['LSTM', 'LSTM', 'LSTM']
+n_layers = 3
 dropout = 0.3
 loss = "mean_absolute_error"
 optimizer = "rmsprop"
 bidirectional = True
 
 # Set the number of epochs and batch size
-epochs = 30
-batch_size = 32
-
-
-#set 2
-"""
-# Set the model parameters
-units = [256, 128, 64]
-cells = ['LSTM', 'GRU', 'SimpleRNN']
-n_layers = 3
-dropout = 0.2
-loss = "mean_squared_error"
-optimizer = "adam"
-bidirectional = True
-
-# Set the training parameters
 epochs = 25
 batch_size = 32
-"""
-#set 3
-"""
-# Set the model parameters
-units = [512, 256]
-cells = ['GRU', 'GRU']
-n_layers = 2
-dropout = 0.4
-loss = "mean_absolute_percentage_error"
-optimizer = "sgd"
-bidirectional = False
-
-# Set the training parameters
-epochs = 35
-batch_size = 64
-"""
-
-#set 4
-"""
-# Set the model parameters
-units = [128, 64, 32]
-cells = ['SimpleRNN', 'SimpleRNN', 'SimpleRNN']
-n_layers = 3
-dropout = 0.5
-loss = "huber_loss"
-optimizer = "adagrad"
-bidirectional = True
-
-# Set the training parameters
-epochs = 15
-batch_size = 16
-"""
-
 
 # Create the model using the create_model function
-model = create_model(sequence_length, n_features, units=units, cells=cells, n_layers=n_layers,
-                     dropout=dropout, loss=loss, optimizer=optimizer, bidirectional=bidirectional, n_steps_ahead=N_STEPS)
-
-
+model = create_model(n_inputdays=PREDICTION_DAYS, n_features=n_features, n_outputdays=N_STEPS, n_neurons=units, cell_types=cells,
+                     dropout_rate=dropout, loss=loss, optimizer=optimizer)
 
 # Train the model on the training data
+print(data['X_train'].shape)
+print(data['y_train'].shape)
 model.fit(data['X_train'], data['y_train'], epochs=epochs, batch_size=batch_size)
 
 closing_price_index = FEATURE_COLUMNS.index(prediction_column)
@@ -448,8 +442,17 @@ real_data = np.reshape(real_data, (real_data.shape[0], real_data.shape[1], n_fea
 
 # Predict the next k days
 prediction = model.predict(real_data)  # shape: (1, k, n_features)
-prediction = data["column_scaler"][prediction_column].inverse_transform(prediction[:, :, closing_price_index])  # shape: (1, k)
+
+# Reshape the prediction array to be 2D
+reshaped_prediction = prediction[:, :, closing_price_index].reshape(-1, 1)  # shape: (k, 1)
+
+# Apply inverse transformation
+prediction = data["column_scaler"][prediction_column].inverse_transform(reshaped_prediction)  # shape: (k, 1)
+
+# Flatten the array to have shape (k,)
+prediction = prediction.ravel()
 
 # Loop over the prediction and print each day's predicted price
-for i, price in enumerate(prediction[0]):
+for i, price in enumerate(prediction):
     print(f"Prediction for day {i+1}: {price}")
+
