@@ -38,8 +38,16 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, GRU, SimpleRNN, Bidirectional, Dropout, Dense, ConvLSTM2D, TimeDistributed, Flatten, Lambda
 from keras.layers import Reshape
 
-
 import matplotlib.pyplot as plt
+
+from statsmodels.tsa.arima.model import ARIMA
+
+#task 6 - arima model creation and training
+def train_arima_model(data, order=(5,1,0)):
+    model = ARIMA(data.values, order=order)
+    model_fit = model.fit()
+    return model_fit
+
 
 #task 5
 #   multi step prediction function
@@ -388,17 +396,17 @@ sequence_length = data['X_train'].shape[1]
 n_features = data['X_train'].shape[2]
 #set 1
 
-units = [256, 128, 64]
-cells = ['LSTM', 'LSTM', 'LSTM']
-n_layers = 3
+units = [64, 32]
+cells = ['LSTM', 'LSTM']
+n_layers = 2
 dropout = 0.3
 loss = "mean_absolute_error"
 optimizer = "rmsprop"
 bidirectional = True
 
 # Set the number of epochs and batch size
-epochs = 25
-batch_size = 32
+epochs = 10
+batch_size = 16
 
 # Create the model using the create_model function
 model = create_model(n_inputdays=PREDICTION_DAYS, n_features=n_features, n_outputdays=N_STEPS, n_neurons=units, cell_types=cells,
@@ -409,17 +417,34 @@ print(data['X_train'].shape)
 print(data['y_train'].shape)
 model.fit(data['X_train'], data['y_train'], epochs=epochs, batch_size=batch_size)
 
+#task 6 train arima model
+#arima_model = train_arima_model(data["train_data"]['Close'], order = (1,1,0))
+model_arima = ARIMA(data['train_data'][prediction_column], order=(1,1,0))
+model_fit_arima = model_arima.fit()
+
+
 closing_price_index = FEATURE_COLUMNS.index(prediction_column)
 
 # Get the actual prices
 actual_prices = data["column_scaler"][prediction_column].inverse_transform(data["y_test"][:, -1, closing_price_index].reshape(-1,1)).ravel()
-# Predict the prices
+# Predict the prices with ltsm model
 predicted_prices = model.predict(data['X_test'])
 predicted_close_prices = predicted_prices[:, -1, closing_price_index].reshape(-1, 1)
 predicted_close_prices = data["column_scaler"][prediction_column].inverse_transform(predicted_close_prices).ravel()
+
+# Predict prices with arima model
+predictions_arima = model_fit_arima.predict(start=0, end=len(data['test_data']['Close'])-1, dynamic=False)
+predictions_arima = data["column_scaler"][prediction_column].inverse_transform(predictions_arima.values.reshape(-1,1)).ravel()
+#forcast = arima_predictions[0]
+#arima_predicted_close_prices = data["column_scaler"][prediction_column].inverse_transform(arima_predictions.reshape(-1,1)).ravel()
+
+#ensemble_predictions = (predicted_close_prices + predictions_arima) / 2
+    
 # Plot the actual and predicted prices
 plt.plot(actual_prices, color="black", label=f"Actual {COMPANY} Price")
-plt.plot(predicted_close_prices, color="green", label=f"Predicted {COMPANY} Price")
+plt.plot(predicted_close_prices, color="green", label=f"Predicted {COMPANY} Price LTSM")
+plt.plot(predictions_arima, color="blue", label=f"Predicted {COMPANY} Price ARIMA")
+#plt.plot(ensemble_predictions, color="red", label=f"Predicted {COMPANY} Price ENSEMBLE")
 plt.title(f"{COMPANY} Share Price")
 plt.xlabel("Time")
 plt.ylabel(f"{COMPANY} Share Price")
@@ -452,7 +477,16 @@ prediction = data["column_scaler"][prediction_column].inverse_transform(reshaped
 # Flatten the array to have shape (k,)
 prediction = prediction.ravel()
 
+arima_prediction = model_fit_arima.forecast(steps=N_STEPS)[0]
+arima_prediction = data["column_scaler"][prediction_column].inverse_transform(arima_prediction.reshape(-1,1)).ravel()
+ensemble_prediction = (prediction + arima_prediction) / 2
+
+
 # Loop over the prediction and print each day's predicted price
 for i, price in enumerate(prediction):
-    print(f"Prediction for day {i+1}: {price}")
+    print(f"LTSM Prediction for day {i+1}: {price}")
+for i, price in enumerate(arima_prediction):
+    print(f"ARIMA Prediction for day {i+1}: {price}")
+for i, price in enumerate(ensemble_prediction):
+    print(f"Ensemble Prediction for day {i+1}: {price}")
 

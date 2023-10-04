@@ -8,3 +8,4 @@ tensorflow
 yfinance
 sklearn
 scikit-learn
+statsmodels
