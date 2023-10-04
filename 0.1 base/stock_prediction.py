@@ -41,6 +41,7 @@ from keras.layers import Reshape
 import matplotlib.pyplot as plt
 
 from statsmodels.tsa.arima.model import ARIMA
+from pmdarima import auto_arima
 
 #task 6 - arima model creation and training
 def train_arima_model(data, order=(5,1,0)):
@@ -199,6 +200,9 @@ def processData(ticker, start_date, end_date, save_file, prediction_column, pred
     
     train_data = train_data.sort_values(by='Date').reset_index(drop=True)
     test_data = test_data.sort_values(by='Date').reset_index(drop=True)
+    
+    result["train_data_unscaled"] = train_data
+    result["test_data_unscaled"] = test_data
 
     if scale_features:
         scaler_dict = {}
@@ -233,111 +237,7 @@ def processData(ticker, start_date, end_date, save_file, prediction_column, pred
     result["y_test"] = y_test
 
     return result
-"""
-def processData(
-    ticker, 
-    start_date, 
-    end_date, 
-    save_file, 
-    prediction_column, 
-    prediction_days, 
-    feature_columns=[], 
-    split_method='date', 
-    split_ratio=0.8, 
-    split_date=None, 
-    fillna_method='drop', 
-    scale_features=False, 
-    scale_min=0, 
-    scale_max=1,
-    save_scalers=False,
-    n_steps=5):  # number of future days to predict  # whether to use multiple features
-    
-    data = downloadData(ticker, start_date, end_date, save_file)
-   
-    # this will contain all the elements we want to return from this function
-    result = {}
-    # we will also return the original dataframe itself
-    result['df'] = data.copy()
-   
-    # make sure that the passed feature_columns exist in the dataframe
-    if len(feature_columns) > 0:
-        for col in feature_columns:
-            assert col in data.columns, f"'{col}' does not exist in the dataframe."
-    else:
-        # if no feature_columns are passed, use all columns except the prediction_column
-        feature_columns = list(filter(lambda column: column != 'Date', data.columns))
-    
-    # add feature columns to result
-    result['feature_columns'] = feature_columns
-    # Deal with potential NaN values in the data
-    # Drop NaN values
-    data = processNANs(data, fillna_method)
 
-    # Split data into train and test sets based on date
-    if split_method == 'date':
-        train_data = data.loc[data['Date'] < split_date]
-        test_data = data.loc[data['Date'] >= split_date]
-    # Split data into train and test sets randomly with provided ratio
-    elif split_method == 'random':
-        train_data, test_data = train_test_split(data, train_size=split_ratio, random_state=42)
-    
-    # Reset index of both dataframes
-    train_data = train_data.reset_index()
-    test_data = test_data.reset_index()
-    # Sort dataframes by date
-    train_data = train_data.sort_values(by='Date')
-    test_data = test_data.sort_values(by='Date')
-
-    # Scale features
-    if scale_features:
-        # Create scaler dictionary to store all scalers for each feature column
-        scaler_dict = {}
-        # Dictionaries to store scaled train and test data
-        scaled_train_data = {}
-        scaled_test_data = {}
-        #loop through each feature column
-        for col in feature_columns:
-            # Create scaler for each feature column using Min Max, passing in the scale_min and scale_max
-            scaler = MinMaxScaler(feature_range=(scale_min, scale_max))
-            # Fit and transform scaler on train data
-            scaled_train_data[col] = scaler.fit_transform(train_data[col].values.reshape(-1, 1)).ravel()
-            # Transform test data using scaler
-            scaled_test_data[col] = scaler.transform(test_data[col].values.reshape(-1,1)).ravel()
-            # Add scaler to scaler dictionary, using the feature column name as key
-            scaler_dict[col] = scaler
-        # Add scaler dictionary to result
-        result["column_scaler"] = scaler_dict
-        
-        
-       
-        # Convert scaled data to dataframes
-        train_data = pd.DataFrame(scaled_train_data)
-        test_data = pd.DataFrame(scaled_test_data)
-
-    # Add train and test data to result
-    result["scaled_train"] = train_data
-    result["scaled_test"] = test_data
-    # Construct the X's and y's for the training data
-    result["scaled_train"] = train_data
-    result["scaled_test"] = test_data
-    X_train, y_train = create_sequences(train_data[feature_columns].values, prediction_days, n_steps)
-    print(y_train.shape)
-    print(X_train.shape)
-    result["X_train"] = X_train
-    result["y_train"] = y_train
-    #result["X_train"] = np.reshape(result["X_train"], (result["X_train"].shape[0], result['X_train'].shape[1], -1));
-    X_test, y_test = create_sequences(test_data[feature_columns].values, prediction_days, n_steps) 
-    print(y_test.shape)
-    print(X_test.shape)
-    #X_test = np.array(X_test)
-    #y_test = np.array(y_test)
-    result["y_test"] = y_test
-    result["X_test"] = X_test
-    #result["X_test"] = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], len(feature_columns)));
-
-
-    return result
-"""
 #------------------------------------------------------------------------------
 # Load and process data using Task B.2 Function
 # ------------------------------------------------------------------------------
@@ -419,9 +319,18 @@ model.fit(data['X_train'], data['y_train'], epochs=epochs, batch_size=batch_size
 
 #task 6 train arima model
 #arima_model = train_arima_model(data["train_data"]['Close'], order = (1,1,0))
-model_arima = ARIMA(data['train_data'][prediction_column], order=(1,1,0))
+model_arima = ARIMA(data['train_data_unscaled'][prediction_column], order=(1,1,0))
 model_fit_arima = model_arima.fit()
 
+
+
+stepwise_fit = auto_arima(data['train_data_unscaled'][prediction_column], start_p = 1, start_q = 1,
+                          max_p = 3, max_q = 3, m = 1,
+                          start_P = 0, seasonal = False,
+                          d = None, D = 0, trace = True,
+                          error_action ='ignore',   # we don't want to know if an order does not work
+                          suppress_warnings = True,  # we don't want convergence warnings
+                          stepwise = True)           # set to stepwise
 
 closing_price_index = FEATURE_COLUMNS.index(prediction_column)
 
@@ -432,9 +341,14 @@ predicted_prices = model.predict(data['X_test'])
 predicted_close_prices = predicted_prices[:, -1, closing_price_index].reshape(-1, 1)
 predicted_close_prices = data["column_scaler"][prediction_column].inverse_transform(predicted_close_prices).ravel()
 
+n_periods = len(data['X_test'])
+forecast_arima  = model.predict(n_periods=n_periods)
 # Predict prices with arima model
-predictions_arima = model_fit_arima.predict(start=0, end=len(data['test_data']['Close'])-1, dynamic=False)
-predictions_arima = data["column_scaler"][prediction_column].inverse_transform(predictions_arima.values.reshape(-1,1)).ravel()
+#forecast_arima = stepwise_fit.forecast(len(data['test_data_unscaled']['Close']));
+#forecast_arima = data["column_scaler"][prediction_column].inverse_transform(forecast_arima.values.reshape(-1,1)).ravel()
+
+predictions_arima = stepwise_fit.predict(start=0, end=len(data['test_data_unscaled']['Close'])-1, dynamic=False)
+#predictions_arima = data["column_scaler"][prediction_column].inverse_transform(predictions_arima.values.reshape(-1,1)).ravel()
 #forcast = arima_predictions[0]
 #arima_predicted_close_prices = data["column_scaler"][prediction_column].inverse_transform(arima_predictions.reshape(-1,1)).ravel()
 
@@ -444,6 +358,7 @@ predictions_arima = data["column_scaler"][prediction_column].inverse_transform(p
 plt.plot(actual_prices, color="black", label=f"Actual {COMPANY} Price")
 plt.plot(predicted_close_prices, color="green", label=f"Predicted {COMPANY} Price LTSM")
 plt.plot(predictions_arima, color="blue", label=f"Predicted {COMPANY} Price ARIMA")
+plt.plot(forecast_arima, color="red", label=f"Predicted {COMPANY} Price ARIMA forecast")
 #plt.plot(ensemble_predictions, color="red", label=f"Predicted {COMPANY} Price ENSEMBLE")
 plt.title(f"{COMPANY} Share Price")
 plt.xlabel("Time")
