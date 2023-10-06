@@ -42,6 +42,7 @@ import matplotlib.pyplot as plt
 
 from statsmodels.tsa.arima.model import ARIMA
 from pmdarima import auto_arima
+from pandas.plotting import autocorrelation_plot
 
 #task 6 - arima model creation and training
 def train_arima_model(data, order=(5,1,0)):
@@ -319,46 +320,49 @@ model.fit(data['X_train'], data['y_train'], epochs=epochs, batch_size=batch_size
 
 #task 6 train arima model
 #arima_model = train_arima_model(data["train_data"]['Close'], order = (1,1,0))
-model_arima = ARIMA(data['train_data_unscaled'][prediction_column], order=(1,1,0))
-model_fit_arima = model_arima.fit()
+
+#autocorrelation_plot(data['train_data'][prediction_column])
+#plt.show()
 
 
 
-stepwise_fit = auto_arima(data['train_data_unscaled'][prediction_column], start_p = 1, start_q = 1,
-                          max_p = 3, max_q = 3, m = 1,
-                          start_P = 0, seasonal = False,
-                          d = None, D = 0, trace = True,
-                          error_action ='ignore',   # we don't want to know if an order does not work
-                          suppress_warnings = True,  # we don't want convergence warnings
-                          stepwise = True)           # set to stepwise
+test_data = data['test_data'][prediction_column].values
+history = [x for x in data['train_data'][prediction_column].values]
+predictions = list()
+for t in range(len(test_data)):
+	arima_model = ARIMA(history, order=(5,1,0))
+	model_fit = arima_model.fit()
+	output = model_fit.forecast()
+	forcast = output[0]
+	predictions.append(forcast)
+	obs = test_data[t]
+	history.append(obs)
+	print('%f/%f, predicted=%f, expected=%f' % (t,len(test_data), forcast, obs))
+    
+arima_predictions_scaled = data["column_scaler"][prediction_column].inverse_transform(np.array(predictions).reshape(-1,1))
+
+#plt.plot(test_data)
+#plt.plot(predictions, color='red')
+#plt.show()
 
 closing_price_index = FEATURE_COLUMNS.index(prediction_column)
 
 # Get the actual prices
+
 actual_prices = data["column_scaler"][prediction_column].inverse_transform(data["y_test"][:, -1, closing_price_index].reshape(-1,1)).ravel()
 # Predict the prices with ltsm model
 predicted_prices = model.predict(data['X_test'])
 predicted_close_prices = predicted_prices[:, -1, closing_price_index].reshape(-1, 1)
 predicted_close_prices = data["column_scaler"][prediction_column].inverse_transform(predicted_close_prices).ravel()
 
-n_periods = len(data['X_test'])
-forecast_arima  = model.predict(n_periods=n_periods)
-# Predict prices with arima model
-#forecast_arima = stepwise_fit.forecast(len(data['test_data_unscaled']['Close']));
-#forecast_arima = data["column_scaler"][prediction_column].inverse_transform(forecast_arima.values.reshape(-1,1)).ravel()
-
-predictions_arima = stepwise_fit.predict(start=0, end=len(data['test_data_unscaled']['Close'])-1, dynamic=False)
-#predictions_arima = data["column_scaler"][prediction_column].inverse_transform(predictions_arima.values.reshape(-1,1)).ravel()
-#forcast = arima_predictions[0]
-#arima_predicted_close_prices = data["column_scaler"][prediction_column].inverse_transform(arima_predictions.reshape(-1,1)).ravel()
-
-#ensemble_predictions = (predicted_close_prices + predictions_arima) / 2
-    
+#task 6 ensemble prediction
+#ensemble_prediction = (predicted_close_prices + predictions) / 2
+  
 # Plot the actual and predicted prices
 plt.plot(actual_prices, color="black", label=f"Actual {COMPANY} Price")
 plt.plot(predicted_close_prices, color="green", label=f"Predicted {COMPANY} Price LTSM")
-plt.plot(predictions_arima, color="blue", label=f"Predicted {COMPANY} Price ARIMA")
-plt.plot(forecast_arima, color="red", label=f"Predicted {COMPANY} Price ARIMA forecast")
+plt.plot(arima_predictions_scaled, color="blue", label=f"Predicted {COMPANY} Price ARIMA")
+#plt.plot(predictions, color="red", label=f"Predicted {COMPANY} Price Ensemble")
 #plt.plot(ensemble_predictions, color="red", label=f"Predicted {COMPANY} Price ENSEMBLE")
 plt.title(f"{COMPANY} Share Price")
 plt.xlabel("Time")
@@ -392,7 +396,11 @@ prediction = data["column_scaler"][prediction_column].inverse_transform(reshaped
 # Flatten the array to have shape (k,)
 prediction = prediction.ravel()
 
-arima_prediction = model_fit_arima.forecast(steps=N_STEPS)[0]
+arima_model = ARIMA(data['train_data'][prediction_column], order=(5,1,0))
+model_fit = arima_model.fit()
+
+arima_prediction = model_fit.forecast(steps=N_STEPS)
+arima_prediction = arima_prediction[0]
 arima_prediction = data["column_scaler"][prediction_column].inverse_transform(arima_prediction.reshape(-1,1)).ravel()
 ensemble_prediction = (prediction + arima_prediction) / 2
 
