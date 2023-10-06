@@ -44,6 +44,10 @@ import matplotlib.pyplot as plt
 
 from statsmodels.tsa.arima.model import ARIMA
 
+from sklearn.ensemble import RandomForestRegressor
+
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+
 from pmdarima import auto_arima
 from pandas.plotting import autocorrelation_plot
 
@@ -113,10 +117,6 @@ def create_model(n_inputdays, n_features, n_outputdays, cell_types=["LSTM"], n_n
     model.compile(optimizer=optimizer, loss=loss)
     
     return model
-
-
-
-
 
 #task 3
 def plot_boxplot(df, n, columns):
@@ -299,8 +299,8 @@ data = processData(
 sequence_length = data['X_train'].shape[1]
 n_features = data['X_train'].shape[2]
 #set 1
-
-units = [128, 64, 132]
+"""
+units = [128, 64, 32]
 cells = ['LSTM', 'LSTM','LSTM']
 n_layers = 3
 dropout = 0.3
@@ -311,6 +311,18 @@ bidirectional = True
 # Set the number of epochs and batch size
 epochs = 32
 batch_size = 64
+"""
+units = [32, 16]
+cells = ['LSTM','LSTM']
+n_layers = 2
+dropout = 0.3
+loss = "mean_absolute_error"
+optimizer = "rmsprop"
+bidirectional = True
+
+# Set the number of epochs and batch size
+epochs = 10
+batch_size = 32
 
 # Create the model using the create_model function
 model = create_model(n_inputdays=PREDICTION_DAYS, n_features=n_features, n_outputdays=N_STEPS, n_neurons=units, cell_types=cells,
@@ -347,6 +359,7 @@ predicted_close_prices = data["column_scaler"][prediction_column].inverse_transf
 
 test_data = data['test_data'][prediction_column].values[-len(predicted_close_prices):]
 history = [x for x in data['train_data'][prediction_column].values]
+"""
 predictions = list()
 for t in range(len(test_data)):
 	arima_model = ARIMA(history, order=(5,1,0))
@@ -355,11 +368,11 @@ for t in range(len(test_data)):
 	forcast = output[0]
 	predictions.append(forcast)
 	obs = test_data[t]
-	history.append(forcast)
+	history.append(obs)
 	print('%f/%f, predicted=%f, expected=%f' % (t,len(test_data), forcast, obs))
     
 arima_predictions_scaled = data["column_scaler"][prediction_column].inverse_transform(np.array(predictions).reshape(-1,1)).reshape(-1)
-
+ensemble_prediction = (predicted_close_prices + arima_predictions_scaled) / 2
 #arima_predictions_scaled = arima_predictions_scaled[-len(predicted_close_prices):]
 #task 6 ensemble prediction
 # Ensure both arrays are numpy arrays
@@ -371,16 +384,39 @@ print (predicted_close_prices.shape)
 print (arima_predictions_scaled.shape)
 if predicted_close_prices.shape != arima_predictions_scaled.shape:
     raise ValueError("Both arrays must have the same shape to calculate the ensemble average")
+"""
+#sarima model
+#sarima_model = SARIMAX(history, order=(5, 1, 0), seasonal_order=(1, 1, 0, 90))
 
-# Calculate the ensemble average
+    
+#arima_predictions_scaled = data["column_scaler"][prediction_column].inverse_transform(np.array(predictions).reshape(-1,1)).reshape(-1)
 
+#random forrest model
 
-ensemble_prediction = (predicted_close_prices + arima_predictions_scaled) / 2
+# Create a Random Forest Regressor
+rf = RandomForestRegressor(n_estimators=300, random_state=42)
+#X_train_reshaped =  data["X_train"][:, :, closing_price_index]
+X_train_flattened = data["X_train"][:, :, closing_price_index].reshape(data["X_train"].shape[0], -1)
+#y_train_reshaped = data["y_train"].reshape(-1, 1)  # shape will be (1507, 100*6)
+# Fit the model on your training data
+
+y_train_reshaped = data["y_train"][:, :, closing_price_index]  # shape will be (1507, 5)
+print(X_train_flattened.shape)
+print(y_train_reshaped.shape)
+rf.fit(X_train_flattened, y_train_reshaped)
+
+# Make predictions on the test data
+X_test_2d = data["X_test"].reshape((data["X_test"].shape[0], -1)) 
+rf_predictions = rf.predict(data["X_test"][:, :, closing_price_index])
+
+rf_predictions = data["column_scaler"][prediction_column].inverse_transform(np.array(rf_predictions).reshape(-1,1)).reshape(-1)
+rf_predictions = rf_predictions[-len(predicted_close_prices):]
+ensemble_prediction = (predicted_close_prices + rf_predictions) / 2
   
 # Plot the actual and predicted prices
 plt.plot(actual_prices, color="black", label=f"Actual {COMPANY} Price")
 plt.plot(predicted_close_prices, color="green", label=f"Predicted {COMPANY} Price LTSM")
-plt.plot(arima_predictions_scaled, color="blue", label=f"Predicted {COMPANY} Price ARIMA")
+plt.plot(rf_predictions, color="blue", label=f"Predicted {COMPANY} Price ARIMA")
 #plt.plot(predictions, color="red", label=f"Predicted {COMPANY} Price Ensemble")
 plt.plot(ensemble_prediction, color="red", label=f"Predicted {COMPANY} Price ENSEMBLE")
 plt.title(f"{COMPANY} Share Price")
