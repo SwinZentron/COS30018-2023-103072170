@@ -19,6 +19,8 @@
 # pip install yfinance
 
 from msilib import Feature
+import string
+from xml.etree.ElementTree import tostring
 import numpy as np
 import matplotlib.pyplot as plt
 import mplfinance as mpf
@@ -41,6 +43,7 @@ from keras.layers import Reshape
 import matplotlib.pyplot as plt
 
 from statsmodels.tsa.arima.model import ARIMA
+
 from pmdarima import auto_arima
 from pandas.plotting import autocorrelation_plot
 
@@ -297,17 +300,17 @@ sequence_length = data['X_train'].shape[1]
 n_features = data['X_train'].shape[2]
 #set 1
 
-units = [64, 32]
-cells = ['LSTM', 'LSTM']
-n_layers = 2
+units = [128, 64, 132]
+cells = ['LSTM', 'LSTM','LSTM']
+n_layers = 3
 dropout = 0.3
 loss = "mean_absolute_error"
 optimizer = "rmsprop"
 bidirectional = True
 
 # Set the number of epochs and batch size
-epochs = 10
-batch_size = 16
+epochs = 32
+batch_size = 64
 
 # Create the model using the create_model function
 model = create_model(n_inputdays=PREDICTION_DAYS, n_features=n_features, n_outputdays=N_STEPS, n_neurons=units, cell_types=cells,
@@ -326,20 +329,6 @@ model.fit(data['X_train'], data['y_train'], epochs=epochs, batch_size=batch_size
 
 
 
-test_data = data['test_data'][prediction_column].values
-history = [x for x in data['train_data'][prediction_column].values]
-predictions = list()
-for t in range(len(test_data)):
-	arima_model = ARIMA(history, order=(5,1,0))
-	model_fit = arima_model.fit()
-	output = model_fit.forecast()
-	forcast = output[0]
-	predictions.append(forcast)
-	obs = test_data[t]
-	history.append(obs)
-	print('%f/%f, predicted=%f, expected=%f' % (t,len(test_data), forcast, obs))
-    
-arima_predictions_scaled = data["column_scaler"][prediction_column].inverse_transform(np.array(predictions).reshape(-1,1))
 
 #plt.plot(test_data)
 #plt.plot(predictions, color='red')
@@ -355,15 +344,45 @@ predicted_prices = model.predict(data['X_test'])
 predicted_close_prices = predicted_prices[:, -1, closing_price_index].reshape(-1, 1)
 predicted_close_prices = data["column_scaler"][prediction_column].inverse_transform(predicted_close_prices).ravel()
 
+
+test_data = data['test_data'][prediction_column].values[-len(predicted_close_prices):]
+history = [x for x in data['train_data'][prediction_column].values]
+predictions = list()
+for t in range(len(test_data)):
+	arima_model = ARIMA(history, order=(5,1,0))
+	model_fit = arima_model.fit()
+	output = model_fit.forecast()
+	forcast = output[0]
+	predictions.append(forcast)
+	obs = test_data[t]
+	history.append(forcast)
+	print('%f/%f, predicted=%f, expected=%f' % (t,len(test_data), forcast, obs))
+    
+arima_predictions_scaled = data["column_scaler"][prediction_column].inverse_transform(np.array(predictions).reshape(-1,1)).reshape(-1)
+
+#arima_predictions_scaled = arima_predictions_scaled[-len(predicted_close_prices):]
 #task 6 ensemble prediction
-#ensemble_prediction = (predicted_close_prices + predictions) / 2
+# Ensure both arrays are numpy arrays
+#predicted_close_prices = np.array(predicted_close_prices)
+#arima_predictions_scaled = np.array(arima_predictions_scaled)
+
+# Check if both arrays have the same shape
+print (predicted_close_prices.shape)
+print (arima_predictions_scaled.shape)
+if predicted_close_prices.shape != arima_predictions_scaled.shape:
+    raise ValueError("Both arrays must have the same shape to calculate the ensemble average")
+
+# Calculate the ensemble average
+
+
+ensemble_prediction = (predicted_close_prices + arima_predictions_scaled) / 2
   
 # Plot the actual and predicted prices
 plt.plot(actual_prices, color="black", label=f"Actual {COMPANY} Price")
 plt.plot(predicted_close_prices, color="green", label=f"Predicted {COMPANY} Price LTSM")
 plt.plot(arima_predictions_scaled, color="blue", label=f"Predicted {COMPANY} Price ARIMA")
 #plt.plot(predictions, color="red", label=f"Predicted {COMPANY} Price Ensemble")
-#plt.plot(ensemble_predictions, color="red", label=f"Predicted {COMPANY} Price ENSEMBLE")
+plt.plot(ensemble_prediction, color="red", label=f"Predicted {COMPANY} Price ENSEMBLE")
 plt.title(f"{COMPANY} Share Price")
 plt.xlabel("Time")
 plt.ylabel(f"{COMPANY} Share Price")
@@ -400,8 +419,8 @@ arima_model = ARIMA(data['train_data'][prediction_column], order=(5,1,0))
 model_fit = arima_model.fit()
 
 arima_prediction = model_fit.forecast(steps=N_STEPS)
-arima_prediction = arima_prediction[0]
-arima_prediction = data["column_scaler"][prediction_column].inverse_transform(arima_prediction.reshape(-1,1)).ravel()
+#arima_prediction = arima_prediction[0]
+arima_prediction = data["column_scaler"][prediction_column].inverse_transform(np.array(arima_prediction).reshape(-1,1)).ravel()
 ensemble_prediction = (prediction + arima_prediction) / 2
 
 
