@@ -9,3 +9,4 @@ yfinance
 sklearn
 scikit-learn
 statsmodels
+pmdarima

@@ -60,25 +60,6 @@ def train_arima_model(data, order=(5,1,0)):
 
 #task 5
 #   multi step prediction function
-def create_sequences_ms(data, seq_length, n_steps_ahead):
-    xs = []
-    ys = []
-    for i in range(len(data)-(seq_length+n_steps_ahead)+1):
-        x = data[i:(i+seq_length)]
-        y = data[(i+seq_length):(i+seq_length+n_steps_ahead)]
-        xs.append(x)
-        ys.append(y)
-    return np.array(xs), np.array(ys)
-
-def create_sequences_mv(data, seq_length):
-    xs = []
-    ys = []
-    for i in range(len(data)-(seq_length+1)):
-        x = data[i:(i+seq_length)]
-        y = data[i+seq_length]
-        xs.append(x)
-        ys.append(y)
-    return np.array(xs), np.array(ys)
 
 def create_sequences(data, n_inputdays, n_outputdays):
     X = []
@@ -189,13 +170,13 @@ def processNANs(df, fillna_method):
 def processData(ticker, start_date, end_date, save_file, prediction_column, prediction_days, feature_columns=[], split_method='date', split_ratio=0.8, split_date=None, fillna_method='drop', scale_features=False, scale_min=0, scale_max=1, save_scalers=False, n_steps=5):
     data = downloadData(ticker, start_date, end_date, save_file)
     result = {'df': data.copy()}
-    
+   
     if not feature_columns:
         feature_columns = [col for col in data.columns if col != 'Date']
     
     result['feature_columns'] = feature_columns
     data = processNANs(data, fillna_method)
-
+    # Split the data into training and testing data
     if split_method == 'date':
         train_data = data[data['Date'] < split_date]
         test_data = data[data['Date'] >= split_date]
@@ -207,7 +188,7 @@ def processData(ticker, start_date, end_date, save_file, prediction_column, pred
     
     result["train_data_unscaled"] = train_data
     result["test_data_unscaled"] = test_data
-
+    # Scale the data
     if scale_features:
         scaler_dict = {}
         for col in feature_columns:
@@ -231,7 +212,7 @@ def processData(ticker, start_date, end_date, save_file, prediction_column, pred
 
     result["train_data"] = train_data
     result["test_data"] = test_data
-
+    # Create x and y sequences
     X_train, y_train = create_sequences(train_data[feature_columns].values, n_inputdays=PREDICTION_DAYS, n_outputdays=N_STEPS)
     X_test, y_test = create_sequences(test_data[feature_columns].values, n_inputdays=PREDICTION_DAYS, n_outputdays=N_STEPS) 
 
@@ -285,33 +266,14 @@ data = processData(
     n_steps=N_STEPS
     )
 #task 4 candlestick
-#plot_candlestick(processNANs(downloadData(COMPANY, '2022-05-01', '2022-05-31', False), 'drop'), 5)
-
-#plot_boxplot(processNANs(downloadData(COMPANY, '2019-01-01', '2022-12-31', False),'drop'),['Open', 'High', 'Low', 'Close', 'Adj Close'], 10)
-
+plot_candlestick(processNANs(downloadData(COMPANY, '2022-05-01', '2022-05-31', False), 'drop'), 5)
 #task 4 bloxplot
-#plot_boxplot(downloadData(COMPANY, '2019-01-01', '2022-12-31', False), 40, ['Open', 'High', 'Low', 'Close', 'Adj Close'])
-# Number of days to look back to base the prediction
-#PREDICTION_DAYS = 60 # Original
-
+plot_boxplot(downloadData(COMPANY, '2019-01-01', '2022-12-31', False), 40, ['Open', 'High', 'Low', 'Close', 'Adj Close'])
 #------------------------------------------------------------------------------
 #Task 4
 sequence_length = data['X_train'].shape[1]
 n_features = data['X_train'].shape[2]
 #set 1
-"""
-units = [128, 64, 32]
-cells = ['LSTM', 'LSTM','LSTM']
-n_layers = 3
-dropout = 0.3
-loss = "mean_absolute_error"
-optimizer = "rmsprop"
-bidirectional = True
-
-# Set the number of epochs and batch size
-epochs = 32
-batch_size = 64
-"""
 units = [32, 16]
 cells = ['LSTM','LSTM']
 n_layers = 2
@@ -336,16 +298,6 @@ model.fit(data['X_train'], data['y_train'], epochs=epochs, batch_size=batch_size
 #task 6 train arima model
 #arima_model = train_arima_model(data["train_data"]['Close'], order = (1,1,0))
 
-#autocorrelation_plot(data['train_data'][prediction_column])
-#plt.show()
-
-
-
-
-#plt.plot(test_data)
-#plt.plot(predictions, color='red')
-#plt.show()
-
 closing_price_index = FEATURE_COLUMNS.index(prediction_column)
 
 # Get the actual prices
@@ -359,7 +311,7 @@ predicted_close_prices = data["column_scaler"][prediction_column].inverse_transf
 
 test_data = data['test_data'][prediction_column].values[-len(predicted_close_prices):]
 history = [x for x in data['train_data'][prediction_column].values]
-"""
+#arima model
 predictions = list()
 for t in range(len(test_data)):
 	arima_model = ARIMA(history, order=(5,1,0))
@@ -372,37 +324,20 @@ for t in range(len(test_data)):
 	print('%f/%f, predicted=%f, expected=%f' % (t,len(test_data), forcast, obs))
     
 arima_predictions_scaled = data["column_scaler"][prediction_column].inverse_transform(np.array(predictions).reshape(-1,1)).reshape(-1)
-ensemble_prediction = (predicted_close_prices + arima_predictions_scaled) / 2
-#arima_predictions_scaled = arima_predictions_scaled[-len(predicted_close_prices):]
-#task 6 ensemble prediction
-# Ensure both arrays are numpy arrays
-#predicted_close_prices = np.array(predicted_close_prices)
-#arima_predictions_scaled = np.array(arima_predictions_scaled)
+ensemble_prediction_arima = (predicted_close_prices + arima_predictions_scaled) / 2
 
 # Check if both arrays have the same shape
 print (predicted_close_prices.shape)
 print (arima_predictions_scaled.shape)
 if predicted_close_prices.shape != arima_predictions_scaled.shape:
     raise ValueError("Both arrays must have the same shape to calculate the ensemble average")
-"""
-#sarima model
-#sarima_model = SARIMAX(history, order=(5, 1, 0), seasonal_order=(1, 1, 0, 90))
-
-    
-#arima_predictions_scaled = data["column_scaler"][prediction_column].inverse_transform(np.array(predictions).reshape(-1,1)).reshape(-1)
-
-#random forrest model
 
 # Create a Random Forest Regressor
 rf = RandomForestRegressor(n_estimators=300, random_state=42)
-#X_train_reshaped =  data["X_train"][:, :, closing_price_index]
-X_train_flattened = data["X_train"][:, :, closing_price_index].reshape(data["X_train"].shape[0], -1)
-#y_train_reshaped = data["y_train"].reshape(-1, 1)  # shape will be (1507, 100*6)
-# Fit the model on your training data
 
+X_train_flattened = data["X_train"][:, :, closing_price_index].reshape(data["X_train"].shape[0], -1)
 y_train_reshaped = data["y_train"][:, :, closing_price_index]  # shape will be (1507, 5)
-print(X_train_flattened.shape)
-print(y_train_reshaped.shape)
+
 rf.fit(X_train_flattened, y_train_reshaped)
 
 # Make predictions on the test data
@@ -411,14 +346,16 @@ rf_predictions = rf.predict(data["X_test"][:, :, closing_price_index])
 
 rf_predictions = data["column_scaler"][prediction_column].inverse_transform(np.array(rf_predictions).reshape(-1,1)).reshape(-1)
 rf_predictions = rf_predictions[-len(predicted_close_prices):]
-ensemble_prediction = (predicted_close_prices + rf_predictions) / 2
+ensemble_prediction_rf = (predicted_close_prices + rf_predictions) / 2
   
 # Plot the actual and predicted prices
 plt.plot(actual_prices, color="black", label=f"Actual {COMPANY} Price")
 plt.plot(predicted_close_prices, color="green", label=f"Predicted {COMPANY} Price LTSM")
-plt.plot(rf_predictions, color="blue", label=f"Predicted {COMPANY} Price ARIMA")
+plt.plot(arima_predictions_scaled, color="orange", label=f"Predicted {COMPANY} Price ARIMA")
+plt.plot(rf_predictions, color="blue", label=f"Predicted {COMPANY} Price RF")
 #plt.plot(predictions, color="red", label=f"Predicted {COMPANY} Price Ensemble")
-plt.plot(ensemble_prediction, color="red", label=f"Predicted {COMPANY} Price ENSEMBLE")
+plt.plot(ensemble_prediction_arima, color="purple", label=f"Predicted {COMPANY} Price ENSEMBLE ARIMA")
+plt.plot(ensemble_prediction_rf, color="red", label=f"Predicted {COMPANY} Price ENSEMBLE RF")
 plt.title(f"{COMPANY} Share Price")
 plt.xlabel("Time")
 plt.ylabel(f"{COMPANY} Share Price")
